@@ -111,6 +111,45 @@ button[kind="primary"] *, .stButton > button * {
   background: var(--rh-card) !important;
 }
 
+[data-testid="stDataFrame"] {
+  border: 1px solid var(--rh-line);
+  border-radius: 16px;
+  overflow: hidden;
+}
+
+.qt-screener-note {
+  background: #ECFDF3;
+  border: 1px solid #BBF7D0;
+  border-radius: 16px;
+  color: #14532D;
+  padding: 0.85rem 1rem;
+  margin: 0.65rem 0 1rem;
+  font-weight: 650;
+}
+
+.qt-section-kicker {
+  color: var(--rh-muted);
+  font-size: 0.78rem;
+  font-weight: 850;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.qt-rating-buy {
+  color: #087B2F;
+  font-weight: 850;
+}
+
+.qt-rating-wait {
+  color: #8A6500;
+  font-weight: 850;
+}
+
+.qt-rating-sell {
+  color: #B42318;
+  font-weight: 850;
+}
+
 .qt-action-buy {
   border-left: 5px solid var(--rh-green) !important;
 }
@@ -143,6 +182,10 @@ DEFAULT_UNIVERSES = {
     ],
     "Auto: Future potential": [
         "RXRX", "IONQ", "SOUN", "ASTS", "RKLB", "ENVX", "CRSP", "JOBY", "HIMS", "PLTR",
+    ],
+    "Auto: Small-cap momentum": [
+        "RXRX", "IONQ", "SOUN", "ASTS", "RKLB", "ENVX", "JOBY", "HIMS", "ACHR", "CLSK",
+        "RIOT", "MARA", "UPST", "AFRM", "SOFI", "LMND", "DNA", "OUST", "WULF", "QBTS",
     ],
     "Auto: ETFs and index pulse": [
         "SPY", "QQQ", "IWM", "DIA", "XLK", "XLF", "XLE", "SMH", "ARKK", "IBB",
@@ -346,6 +389,82 @@ def trade_decision(score, quote):
     return "SELL / AVOID"
 
 
+def factor_grade(value):
+    if value >= 94:
+        return "A+"
+    if value >= 88:
+        return "A"
+    if value >= 82:
+        return "A-"
+    if value >= 76:
+        return "B+"
+    if value >= 70:
+        return "B"
+    if value >= 63:
+        return "B-"
+    if value >= 55:
+        return "C"
+    if value >= 45:
+        return "D"
+    return "F"
+
+
+def quan_rating(score, decision):
+    if decision == "SELL / AVOID" or score < 55:
+        return "Sell / Avoid"
+    if score >= 88:
+        return "Strong Buy"
+    if score >= 78:
+        return "Buy"
+    if score >= 65:
+        return "Hold"
+    return "Watch"
+
+
+def clamp_score(value):
+    return max(0, min(100, round(value)))
+
+
+def score_factors(quote, regime):
+    atr_percent = quote["atr"] / max(quote["price"], 0.01)
+    distance_to_resistance = (quote["resistance"] - quote["price"]) / max(quote["price"], 0.01)
+    distance_to_support = (quote["price"] - quote["support"]) / max(quote["price"], 0.01)
+
+    momentum = 50
+    momentum += 18 if quote["price"] > quote["sma20"] > quote["sma50"] else -16 if quote["price"] < quote["sma20"] else 2
+    momentum += 14 if quote["relative_volume"] >= 1.3 else 8 if quote["relative_volume"] >= 1.0 else -8
+    momentum += 8 if quote["sector_trend"] == "strong" else -10 if quote["sector_trend"] == "weak" else 0
+
+    technical = 50
+    technical += 14 if quote["price"] > quote["vwap"] else -10
+    technical += 12 if 0 <= distance_to_resistance <= 0.04 else 5 if distance_to_resistance > 0.04 else -5
+    technical += 10 if distance_to_support >= 0.02 else -8
+    technical += 7 if quote["price"] > quote["sma20"] else -7
+
+    liquidity = 50
+    liquidity += 24 if quote["average_volume"] >= 20_000_000 else 16 if quote["average_volume"] >= 8_000_000 else 4 if quote["average_volume"] >= 3_000_000 else -18
+    liquidity += 8 if quote["spread_percent"] <= 0.08 else -8
+    liquidity += 7 if quote["relative_volume"] >= 1.0 else -4
+
+    risk_quality = 72
+    risk_quality -= 22 if atr_percent > 0.08 else 12 if atr_percent > 0.05 else 2 if atr_percent > 0.03 else 0
+    risk_quality -= 12 if quote["price"] < quote["sma20"] else 0
+    risk_quality += 6 if distance_to_support >= 0.03 else -6
+
+    market_timing = 55
+    market_timing += 18 if regime["bias"] == "bullish" else -8 if regime["bias"] == "mixed" else 4
+    market_timing += 8 if quote["market_alignment"] == "bullish" else 0
+    market_timing += 6 if quote["news_sentiment"] == "positive" else -8 if quote["news_sentiment"] == "negative" else 0
+
+    return {
+        "Momentum": clamp_score(momentum),
+        "Technical": clamp_score(technical),
+        "Liquidity": clamp_score(liquidity),
+        "Risk": clamp_score(risk_quality),
+        "Timing": clamp_score(market_timing),
+    }
+
+
 def position_size(entry, stop, risk_profile):
     risk_budget = risk_profile.account_size * risk_profile.risk_per_trade_percent / 100
     risk_per_share = max(entry - stop, 0.01)
@@ -364,6 +483,7 @@ def position_size(entry, stop, risk_profile):
 
 def build_trade_plan(quote, regime, risk_profile):
     score = score_trade(quote, regime)
+    factors = score_factors(quote, regime)
     entry = money(max(quote["price"], quote["resistance"] + 0.03)) if quote["price"] > quote["sma20"] else quote["price"]
     stop = money(min(quote["support"], entry - quote["atr"] * 0.7))
     risk = entry - stop
@@ -378,6 +498,9 @@ def build_trade_plan(quote, regime, risk_profile):
         "score": score,
         "grade": trade_grade(score),
         "decision": decision,
+        "rating": quan_rating(score, decision),
+        "factor_scores": factors,
+        "factor_grades": {name: factor_grade(value) for name, value in factors.items()},
         "action_note": action_note(decision, quote),
         "setup": setup,
         "entry": entry,
@@ -480,17 +603,67 @@ def render_header():
     with st.container(border=True):
         left, right = st.columns([0.72, 0.28], vertical_alignment="center")
         with left:
-            st.caption("AI-powered market analysis")
-            st.title("Let the agent scan for buy/sell setups.")
-            st.subheader("QuanTrade searches a market universe and brings back ranked recommendations.")
+            st.caption("Top-rated stock setup screener")
+            st.title("Let QuanTrade find the trade candidates.")
+            st.subheader("Automatic ranking for buy, wait, and sell/avoid decisions.")
             st.write(
-                "Choose the market area to scan, set your risk rules, then review clear recommendations with entry, "
-                "stop, targets, position size, and the reason to skip."
+                "Choose a market universe, set your risk rules, and let the agent rank stocks by QuanScore, "
+                "factor grades, entry trigger, stop, target, and position size."
             )
             st.caption("For informational purposes only. Not financial advice.")
         with right:
-            st.metric("Next step", "Scan")
-            st.metric("Output", "Buy / Wait / Avoid")
+            st.metric("Workflow", "Scan first")
+            st.metric("Output", "Ranked setups")
+
+
+def render_screener_table(plans):
+    rows = []
+    for index, plan in enumerate(plans, start=1):
+        factors = plan["factor_grades"]
+        rows.append(
+            {
+                "Rank": index,
+                "Ticker": plan["symbol"],
+                "Rating": plan["rating"],
+                "QuanScore": plan["score"],
+                "Action": plan["decision"],
+                "Momentum": factors["Momentum"],
+                "Technical": factors["Technical"],
+                "Liquidity": factors["Liquidity"],
+                "Risk": factors["Risk"],
+                "Timing": factors["Timing"],
+                "Buy Above": f"${plan['entry']}",
+                "Stop": f"${plan['stop']}",
+                "Target 1": f"${plan['target1']}",
+                "Shares": plan["sizing"]["shares"],
+                "Max Loss": f"${plan['sizing']['max_loss']}",
+            }
+        )
+
+    st.markdown('<div class="qt-section-kicker">Ranked Screener</div>', unsafe_allow_html=True)
+    st.subheader("Top Rated Stock Setups")
+    st.markdown(
+        '<div class="qt-screener-note">Start here: QuanTrade scans the universe for you, ranks the best setups, '
+        "and separates buy candidates from wait and sell/avoid names.</div>",
+        unsafe_allow_html=True,
+    )
+
+    if pd is not None:
+        frame = pd.DataFrame(rows)
+        st.dataframe(frame, use_container_width=True, hide_index=True)
+    else:
+        for row in rows:
+            st.write(row)
+
+
+def passes_rating_filter(plan, rating_filter):
+    if rating_filter == "All ratings":
+        return True
+    if rating_filter == "Buy or better":
+        return plan["rating"] in ["Strong Buy", "Buy"]
+    if rating_filter == "Strong Buy only":
+        return plan["rating"] == "Strong Buy"
+    return True
 
 
 def render_plan(plan):
@@ -500,8 +673,8 @@ def render_plan(plan):
         top_left, top_right = st.columns([0.70, 0.30])
         with top_left:
             st.subheader(f"{plan['symbol']}")
-            st.markdown(f"**{plan['decision']}**")
-            st.caption(f"{plan['setup']} · Grade {plan['grade']} · Data: {plan['source']}")
+            st.markdown(f"**{plan['rating']} · {plan['decision']}**")
+            st.caption(f"{plan['setup']} · QuanGrade {plan['grade']} · Data: {plan['source']}")
             if is_buy:
                 st.success(plan["action_note"])
             elif is_sell:
@@ -522,6 +695,14 @@ def render_plan(plan):
         c2.metric("Position", f"${plan['sizing']['position_value']}")
         c3.metric("Max loss", f"${plan['sizing']['max_loss']}")
         c4.metric("Risk/share", f"${plan['sizing']['risk_per_share']}")
+
+        f1, f2, f3, f4, f5 = st.columns(5)
+        grades = plan["factor_grades"]
+        f1.metric("Momentum", grades["Momentum"])
+        f2.metric("Technical", grades["Technical"])
+        f3.metric("Liquidity", grades["Liquidity"])
+        f4.metric("Risk", grades["Risk"])
+        f5.metric("Timing", grades["Timing"])
 
         if is_sell:
             st.write("Sell/Avoid logic: trend is weak, quality score is low, or liquidity/risk does not justify a fresh entry.")
@@ -559,11 +740,13 @@ def main():
     with st.sidebar:
         render_logo()
         st.divider()
-        st.subheader("1. Let Agent Scan")
+        st.subheader("1. Run Screener")
         universe_name = st.selectbox("Market to scan", list(DEFAULT_UNIVERSES.keys()))
         st.caption(f"The agent will scan {len(DEFAULT_UNIVERSES[universe_name])} symbols from this market group.")
         use_live_data = st.toggle("Use live Yahoo Finance data when available", value=True)
-        max_results = st.slider("Recommendations to show", 3, 20, 10)
+        max_results = st.slider("Ranked results to show", 5, 40, 15)
+        rating_filter = st.selectbox("Minimum rating", ["All ratings", "Buy or better", "Strong Buy only"])
+        show_avoid = st.toggle("Show sell/avoid names", value=True)
         with st.expander("Advanced: scan my own tickers"):
             use_custom_tickers = st.checkbox("Override market scan with custom tickers", value=False)
             custom = st.text_area("Custom tickers", value=", ".join(DEFAULT_UNIVERSES[universe_name]), height=90)
@@ -580,10 +763,10 @@ def main():
         future_sectors = st.multiselect("Future sectors", ["All"] + sorted({item[2] for item in FUTURE_COMPANIES}), default=["All"])
 
     render_header()
-    run_scan = st.button("Scan Market For Buy/Sell Setups", type="primary")
+    run_scan = st.button("Run Top-Rated Stock Scan", type="primary")
 
     if not run_scan and "plans" not in st.session_state:
-        st.info("Choose a market universe and risk settings, then click Scan Market For Buy/Sell Setups.")
+        st.info("Choose a market universe and risk settings, then click Run Top-Rated Stock Scan.")
         st.caption("QuanTrade is a decision-support assistant. It does not guarantee outcomes.")
         return
 
@@ -602,7 +785,10 @@ def main():
         st.session_state["scanned_count"] = len(tickers)
 
     regime = st.session_state["regime"]
-    plans = st.session_state["plans"]
+    raw_plans = st.session_state["plans"]
+    plans = [plan for plan in raw_plans if passes_rating_filter(plan, rating_filter)]
+    if not show_avoid:
+        plans = [plan for plan in plans if plan["decision"] != "SELL / AVOID"]
     futures = st.session_state["futures"]
     risk_profile = st.session_state["risk_profile"]
 
@@ -613,35 +799,41 @@ def main():
 
     c1, c2, c3, c4 = st.columns(4)
     c1.metric("Market Regime", regime["bias"].title())
-    c2.metric("Buy Setups", buy_count)
+    c2.metric("Buy Rated", buy_count)
     c3.metric("Wait / Hold", wait_count)
     c4.metric("Sell / Avoid", sell_count)
     st.caption(
         f"Scanned: {st.session_state.get('scan_universe', universe_name)} · "
-        f"{st.session_state.get('scanned_count', len(plans))} symbols · Average quality: {avg_score}/100 · "
+        f"{st.session_state.get('scanned_count', len(raw_plans))} symbols · Average QuanScore: {avg_score}/100 · "
         f"Last scan: {st.session_state['last_scan']} · Data mode: {regime['source']}"
     )
+
+    if not plans:
+        st.warning("No names match the current rating filter. Change Minimum rating or show sell/avoid names.")
+        return
+
+    render_screener_table(plans)
 
     buy_plans = [plan for plan in plans if plan["decision"] == "BUY SETUP"]
     wait_plans = [plan for plan in plans if plan["decision"] in ["WAIT FOR TRIGGER", "HOLD / WATCH"]]
     sell_plans = [plan for plan in plans if plan["decision"] == "SELL / AVOID"]
 
-    st.subheader("Agent Recommendations")
+    st.subheader("Trade Plan Details")
     if buy_plans:
-        st.markdown("### Consider Buying Only If Trigger Confirms")
-        for plan in buy_plans:
-            render_plan(plan)
+        with st.expander("Buy-rated setups", expanded=True):
+            for plan in buy_plans:
+                render_plan(plan)
     else:
         st.warning("No clean buy setup found from this scan. Waiting is a valid trading decision.")
 
-    with st.expander("Wait / Hold Candidates", expanded=True):
+    with st.expander("Wait / Hold candidates", expanded=True):
         if wait_plans:
             for plan in wait_plans:
                 render_plan(plan)
         else:
             st.caption("No wait/hold names in this scan.")
 
-    with st.expander("Sell / Avoid Candidates", expanded=True):
+    with st.expander("Sell / Avoid candidates", expanded=show_avoid):
         if sell_plans:
             for plan in sell_plans:
                 render_plan(plan)
