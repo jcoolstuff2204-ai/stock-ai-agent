@@ -470,6 +470,66 @@ MOCK_MARKET_DATA = [
 ]
 
 
+def stock(
+    symbol,
+    name,
+    price,
+    vwap,
+    average_volume,
+    relative_volume,
+    spread_percent,
+    sector_trend,
+    market_alignment,
+    news_sentiment,
+    earnings_risk_days,
+    atr,
+    support,
+    resistance,
+    sma20,
+    sma50,
+):
+    return {
+        "symbol": symbol,
+        "name": name,
+        "price": price,
+        "previous_close": money(price * 0.992),
+        "vwap": vwap,
+        "average_volume": average_volume,
+        "volume": int(average_volume * relative_volume),
+        "relative_volume": relative_volume,
+        "spread_percent": spread_percent,
+        "sector_trend": sector_trend,
+        "market_alignment": market_alignment,
+        "news_sentiment": news_sentiment,
+        "earnings_risk_days": earnings_risk_days,
+        "atr": atr,
+        "support": support,
+        "resistance": resistance,
+        "sma20": sma20,
+        "sma50": sma50,
+    }
+
+
+def get_market_universe():
+    return MOCK_MARKET_DATA + [
+        stock("AAPL", "Apple Inc.", 212.4, 211.8, 58_000_000, 1.08, 0.02, "neutral", "bullish", "neutral", 16, 3.1, 207.8, 214.2, 209.6, 205.7),
+        stock("META", "Meta Platforms", 514.7, 511.9, 17_000_000, 1.18, 0.03, "strong", "bullish", "positive", 21, 10.4, 502.2, 518.8, 500.3, 486.9),
+        stock("AMZN", "Amazon.com", 186.3, 185.5, 39_000_000, 1.15, 0.03, "strong", "bullish", "positive", 28, 4.6, 181.4, 188.2, 181.1, 176.5),
+        stock("GOOGL", "Alphabet Inc.", 176.8, 176.1, 27_000_000, 0.98, 0.02, "neutral", "bullish", "neutral", 13, 3.5, 173.2, 179.4, 174.6, 169.7),
+        stock("AVGO", "Broadcom Inc.", 143.6, 142.1, 33_000_000, 1.31, 0.04, "strong", "bullish", "positive", 9, 5.2, 137.9, 144.8, 136.5, 130.4),
+        stock("SMCI", "Super Micro Computer", 48.9, 49.7, 44_000_000, 1.41, 0.09, "mixed", "mixed", "neutral", 19, 4.4, 46.1, 52.2, 51.8, 55.4),
+        stock("COIN", "Coinbase Global", 244.2, 241.8, 12_000_000, 1.52, 0.05, "strong", "bullish", "positive", 34, 12.7, 231.5, 247.6, 232.4, 219.8),
+        stock("MSTR", "MicroStrategy", 156.1, 154.6, 18_000_000, 1.43, 0.06, "strong", "bullish", "positive", 40, 10.9, 147.2, 158.0, 146.7, 137.5),
+        stock("NFLX", "Netflix Inc.", 641.0, 638.2, 4_600_000, 1.02, 0.04, "neutral", "bullish", "positive", 12, 13.2, 624.5, 649.8, 629.6, 610.1),
+        stock("JPM", "JPMorgan Chase", 198.7, 198.1, 9_800_000, 0.95, 0.03, "neutral", "mixed", "neutral", 25, 2.9, 195.3, 201.2, 197.4, 194.8),
+        stock("XOM", "Exxon Mobil", 113.4, 114.0, 16_000_000, 0.88, 0.03, "weak", "mixed", "neutral", 22, 2.2, 111.2, 116.4, 115.6, 116.1),
+        stock("SPY", "SPDR S&P 500 ETF", 537.6, 536.9, 74_000_000, 1.06, 0.01, "neutral", "bullish", "neutral", 365, 4.8, 531.8, 539.4, 532.7, 524.1),
+        stock("QQQ", "Invesco QQQ Trust", 462.2, 461.0, 49_000_000, 1.12, 0.01, "strong", "bullish", "positive", 365, 5.7, 454.3, 464.6, 455.1, 445.2),
+        stock("IWM", "iShares Russell 2000 ETF", 203.5, 204.2, 31_000_000, 0.91, 0.02, "weak", "mixed", "neutral", 365, 2.8, 200.7, 207.1, 205.3, 206.0),
+        stock("MARA", "MARA Holdings", 19.6, 19.2, 52_000_000, 1.66, 0.11, "strong", "bullish", "positive", 37, 1.9, 18.1, 20.4, 18.8, 17.1),
+    ]
+
+
 def money(value):
     return round(float(value), 2)
 
@@ -682,14 +742,15 @@ def build_trade_plan(candidate, risk_profile):
     }
 
 
-def scan_market(risk_profile):
+def scan_market(risk_profile, max_results):
     market_regime = {
         "bias": "bullish",
         "volatility": "normal",
         "note": "Mock regime for deployment setup. Connect live data before real trading decisions.",
     }
     candidates = []
-    for stock in MOCK_MARKET_DATA:
+    universe = get_market_universe()
+    for stock in universe:
         filters = evaluate_filters(stock)
         setup = detect_setup(stock, market_regime)
         score = score_trade(stock, filters, setup, market_regime)
@@ -704,7 +765,7 @@ def scan_market(risk_profile):
         candidates.append(candidate)
 
     candidates.sort(key=lambda item: item["score"], reverse=True)
-    plans = [build_trade_plan(candidate, risk_profile) for candidate in candidates[:5]]
+    plans = [build_trade_plan(candidate, risk_profile) for candidate in candidates[:max_results]]
     return market_regime, plans
 
 
@@ -807,7 +868,7 @@ def render_onboarding():
             )
             st.caption("Trade with data, not emotion. Analyze risk before chasing reward.")
             st.caption("For informational purposes only. Not financial advice.")
-    st.button("Start Analyzing", type="primary", use_container_width=False)
+    return st.button("Start Analyzing", type="primary", use_container_width=False)
 
 
 def metric_card(label, value, copy, gradient=False):
@@ -975,22 +1036,33 @@ def main():
         account_size = st.number_input("Account size", min_value=1000.0, value=10000.0, step=500.0)
         risk_percent = st.number_input("Risk per trade (%)", min_value=0.1, max_value=5.0, value=1.0, step=0.1)
         max_position_percent = st.number_input("Max position size (%)", min_value=1.0, max_value=100.0, value=25.0, step=1.0)
+        max_results = st.slider("Signals to show", min_value=5, max_value=20, value=10, step=1)
         st.divider()
         st.caption("Analyze before you trade.")
         st.caption("Signals are informational, not financial advice.")
+
+    if "analysis_started" not in st.session_state:
+        st.session_state.analysis_started = False
+
+    started_now = render_onboarding()
+    if started_now:
+        st.session_state.analysis_started = True
+
+    if not st.session_state.analysis_started:
+        st.info("Set your risk settings, then click Start Analyzing to scan the sample market universe.")
+        st.caption("Current MVP mode uses expanded sample data. Live stock scanning will require a market data provider such as Alpaca or Polygon.")
+        return
 
     risk_profile = RiskProfile(
         account_size=account_size,
         risk_per_trade_percent=risk_percent,
         max_position_percent=max_position_percent,
     )
-    market_regime, plans = scan_market(risk_profile)
+    market_regime, plans = scan_market(risk_profile, max_results)
 
     trade_candidates = sum(1 for plan in plans if plan["decision"] == "Trade candidate")
     watch_only = sum(1 for plan in plans if plan["decision"] == "Watch only")
     average_score = round(sum(plan["score"] for plan in plans) / len(plans), 1)
-
-    render_onboarding()
 
     st.caption(
         f"Market regime: {market_regime['bias']} · Volatility: {market_regime['volatility']} · "
@@ -1004,7 +1076,7 @@ def main():
 
     with signals_tab:
         st.markdown("### Top Opportunities")
-        st.caption("Risk-aware trading support. Understand the signal before the trade.")
+        st.caption(f"Showing {len(plans)} ranked signals from {len(get_market_universe())} sample market candidates.")
         for plan in plans:
             render_plan(plan)
 
