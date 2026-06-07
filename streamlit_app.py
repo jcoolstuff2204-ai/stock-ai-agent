@@ -24,33 +24,28 @@ st.set_page_config(
 BRAND_CSS = """
 <style>
 :root {
-  --midnight: #0B1020;
-  --card: #111827;
-  --panel: #0F172A;
-  --cyan: #00E5FF;
-  --purple: #7C3AED;
-  --green: #22C55E;
-  --red: #EF4444;
-  --gray: #CBD5E1;
-  --muted: #94A3B8;
-  --border: #334155;
+  --rh-bg: #F7F8F6;
+  --rh-card: #FFFFFF;
+  --rh-ink: #0B0F0E;
+  --rh-muted: #6B7280;
+  --rh-line: #E5E7EB;
+  --rh-green: #00C805;
+  --rh-red: #FF5000;
+  --rh-yellow: #F4C430;
 }
 
 html, body, [data-testid="stAppViewContainer"], [data-testid="stHeader"] {
-  background:
-    radial-gradient(circle at 18% 0%, rgba(0, 229, 255, 0.10), transparent 28%),
-    radial-gradient(circle at 85% 0%, rgba(124, 58, 237, 0.16), transparent 34%),
-    var(--midnight) !important;
+  background: var(--rh-bg) !important;
 }
 
 [data-testid="stSidebar"] {
-  background: #080D1B !important;
-  border-right: 1px solid var(--border);
+  background: var(--rh-card) !important;
+  border-right: 1px solid var(--rh-line);
 }
 
 .block-container {
-  max-width: 1260px;
-  padding-top: 2rem;
+  max-width: 1160px;
+  padding-top: 1.35rem;
   padding-bottom: 4rem;
 }
 
@@ -59,53 +54,73 @@ h1, h2, h3, h4, p, label, span, div {
 }
 
 h1, h2, h3, h4 {
-  color: #FFFFFF !important;
+  color: var(--rh-ink) !important;
   letter-spacing: 0 !important;
 }
 
 p, .stCaption, [data-testid="stMarkdownContainer"] {
-  color: var(--gray);
+  color: var(--rh-muted);
 }
 
 [data-testid="stMetric"] {
-  background: rgba(17, 24, 39, 0.92);
-  border: 1px solid var(--border);
-  border-radius: 18px;
+  background: var(--rh-card);
+  border: 1px solid var(--rh-line);
+  border-radius: 14px;
   padding: 1rem;
+  box-shadow: 0 1px 2px rgba(16, 24, 40, 0.04);
 }
 
 [data-testid="stMetricValue"] {
-  color: #FFFFFF;
+  color: var(--rh-ink);
   font-variant-numeric: tabular-nums;
 }
 
 button[kind="primary"], .stButton > button {
-  background: var(--cyan) !important;
-  color: var(--midnight) !important;
+  background: var(--rh-green) !important;
+  color: var(--rh-ink) !important;
   border: 0 !important;
-  border-radius: 14px !important;
+  border-radius: 999px !important;
   font-weight: 850 !important;
   min-height: 2.8rem;
 }
 
 button[kind="primary"] *, .stButton > button * {
-  color: var(--midnight) !important;
+  color: var(--rh-ink) !important;
   font-weight: 850 !important;
 }
 
 [data-baseweb="tab"] {
-  color: var(--gray) !important;
+  color: var(--rh-muted) !important;
   font-weight: 750 !important;
 }
 
 [data-baseweb="tab"][aria-selected="true"] {
-  color: #FFFFFF !important;
+  color: var(--rh-ink) !important;
 }
 
 [data-testid="stSidebar"] input,
 [data-testid="stSidebar"] [data-baseweb="input"] {
-  background: var(--card) !important;
-  color: #FFFFFF !important;
+  background: #F3F4F6 !important;
+  color: var(--rh-ink) !important;
+  border-color: var(--rh-line) !important;
+}
+
+[data-testid="stExpander"], [data-testid="stVerticalBlockBorderWrapper"] {
+  border-color: var(--rh-line) !important;
+  border-radius: 16px !important;
+  background: var(--rh-card) !important;
+}
+
+.qt-action-buy {
+  border-left: 5px solid var(--rh-green) !important;
+}
+
+.qt-action-wait {
+  border-left: 5px solid var(--rh-yellow) !important;
+}
+
+.qt-action-sell {
+  border-left: 5px solid var(--rh-red) !important;
 }
 </style>
 """
@@ -447,25 +462,25 @@ def openai_brief(prompt):
 
 
 def render_logo():
-    st.markdown("### QuanTrade AI Agent")
-    st.caption("Smarter signals. Calmer trading.")
+    st.markdown("## QuanTrade")
+    st.caption("AI signals for calmer trading.")
 
 
 def render_header():
     with st.container(border=True):
         left, right = st.columns([0.72, 0.28], vertical_alignment="center")
         with left:
-            st.caption("AI-powered market analysis assistant")
-            st.title("QuanTrade AI Agent")
-            st.subheader("Find buy, sell, and wait signals before you trade.")
+            st.caption("AI-powered market analysis")
+            st.title("What should I buy, wait on, or avoid?")
+            st.subheader("QuanTrade ranks your stock list and builds a risk plan for each setup.")
             st.write(
-                "Scan your stock universe, rank the strongest setups, and get a complete risk-aware plan: "
-                "entry, stop, targets, position size, and invalidation."
+                "Start with a universe, set your account risk, then review clear recommendations with entry, stop, "
+                "targets, position size, and the reason to skip."
             )
             st.caption("For informational purposes only. Not financial advice.")
         with right:
-            st.metric("Main workflow", "Buy / Sell / Wait")
-            st.metric("Risk mode", "Position-sized")
+            st.metric("Next step", "Scan")
+            st.metric("Output", "Buy / Wait / Avoid")
 
 
 def render_plan(plan):
@@ -474,7 +489,8 @@ def render_plan(plan):
     with st.container(border=True):
         top_left, top_right = st.columns([0.70, 0.30])
         with top_left:
-            st.subheader(f"{plan['decision']}: {plan['symbol']}")
+            st.subheader(f"{plan['symbol']}")
+            st.markdown(f"**{plan['decision']}**")
             st.caption(f"{plan['setup']} · Grade {plan['grade']} · Data: {plan['source']}")
             if is_buy:
                 st.success(plan["action_note"])
