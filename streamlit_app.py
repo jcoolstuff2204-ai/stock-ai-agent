@@ -309,14 +309,16 @@ def trade_grade(score):
 
 def trade_decision(score, quote):
     if quote["average_volume"] < 3_000_000:
-        return "Avoid: liquidity risk"
+        return "SELL / AVOID"
+    if quote["price"] < quote["sma20"] and quote["sector_trend"] == "weak":
+        return "SELL / AVOID"
     if score >= 80:
-        return "Trade candidate"
+        return "BUY SETUP"
     if score >= 68:
-        return "Watch for confirmation"
+        return "WAIT FOR TRIGGER"
     if score >= 55:
-        return "Watchlist only"
-    return "Avoid for now"
+        return "HOLD / WATCH"
+    return "SELL / AVOID"
 
 
 def position_size(entry, stop, risk_profile):
@@ -351,6 +353,7 @@ def build_trade_plan(quote, regime, risk_profile):
         "score": score,
         "grade": trade_grade(score),
         "decision": decision,
+        "action_note": action_note(decision, quote),
         "setup": setup,
         "entry": entry,
         "stop": stop,
@@ -359,6 +362,16 @@ def build_trade_plan(quote, regime, risk_profile):
         "sizing": sizing,
         "invalidation": f"Skip or exit if {quote['symbol']} loses VWAP near ${quote['vwap']} with heavy selling volume.",
     }
+
+
+def action_note(decision, quote):
+    if decision == "BUY SETUP":
+        return "Consider only if the entry trigger confirms. Do not chase above the chase zone."
+    if decision == "WAIT FOR TRIGGER":
+        return "Promising, but not ready. Wait for confirmation above VWAP/resistance with volume."
+    if decision == "HOLD / WATCH":
+        return "No fresh buy signal. If already holding, monitor trend and risk levels."
+    return "Avoid new buying. If already holding, review whether the position still fits your plan."
 
 
 def scan_trades(tickers, risk_profile, use_live_data, max_results):
@@ -444,31 +457,36 @@ def render_header():
         with left:
             st.caption("AI-powered market analysis assistant")
             st.title("QuanTrade AI Agent")
-            st.subheader("Analyze before you trade.")
+            st.subheader("Find buy, sell, and wait signals before you trade.")
             st.write(
-                "A risk-aware trading desk for scanning stocks, building trade plans, sizing positions, "
-                "tracking future opportunities, and asking an AI co-pilot for market context."
+                "Scan your stock universe, rank the strongest setups, and get a complete risk-aware plan: "
+                "entry, stop, targets, position size, and invalidation."
             )
             st.caption("For informational purposes only. Not financial advice.")
         with right:
-            st.metric("Workflow", "Scan -> Plan -> Risk")
-            st.metric("Mode", "Decision Support")
+            st.metric("Main workflow", "Buy / Sell / Wait")
+            st.metric("Risk mode", "Position-sized")
 
 
 def render_plan(plan):
-    color = "normal"
-    if "Avoid" in plan["decision"]:
-        color = "inverse"
+    is_buy = plan["decision"] == "BUY SETUP"
+    is_sell = plan["decision"] == "SELL / AVOID"
     with st.container(border=True):
         top_left, top_right = st.columns([0.70, 0.30])
         with top_left:
-            st.subheader(f"{plan['symbol']} · {plan['decision']}")
+            st.subheader(f"{plan['decision']}: {plan['symbol']}")
             st.caption(f"{plan['setup']} · Grade {plan['grade']} · Data: {plan['source']}")
+            if is_buy:
+                st.success(plan["action_note"])
+            elif is_sell:
+                st.error(plan["action_note"])
+            else:
+                st.info(plan["action_note"])
         with top_right:
             st.metric("Trade Quality", f"{plan['score']}/100")
 
         c1, c2, c3, c4 = st.columns(4)
-        c1.metric("Entry trigger", f"${plan['entry']}")
+        c1.metric("Buy above", f"${plan['entry']}")
         c2.metric("Stop", f"${plan['stop']}")
         c3.metric("Target 1", f"${plan['target1']}")
         c4.metric("Target 2", f"${plan['target2']}")
@@ -479,7 +497,10 @@ def render_plan(plan):
         c3.metric("Max loss", f"${plan['sizing']['max_loss']}")
         c4.metric("Risk/share", f"${plan['sizing']['risk_per_share']}")
 
-        st.write(plan["invalidation"])
+        if is_sell:
+            st.write("Sell/Avoid logic: trend is weak, quality score is low, or liquidity/risk does not justify a fresh entry.")
+        else:
+            st.write(plan["invalidation"])
         st.caption("Trade with data, not emotion. Signals are informational, not financial advice.")
 
 
@@ -512,28 +533,28 @@ def main():
     with st.sidebar:
         render_logo()
         st.divider()
-        st.subheader("Market Scan")
+        st.subheader("1. Pick Stocks")
         universe_name = st.selectbox("Universe", list(DEFAULT_UNIVERSES.keys()))
         custom = st.text_area("Custom tickers", value=", ".join(DEFAULT_UNIVERSES[universe_name]), height=110)
         use_live_data = st.toggle("Use live Yahoo Finance data when available", value=True)
-        max_results = st.slider("Trade setups to show", 3, 20, 10)
+        max_results = st.slider("Recommendations to show", 3, 20, 10)
         st.divider()
-        st.subheader("Risk Rules")
+        st.subheader("2. Set Risk")
         account_size = st.number_input("Account size", min_value=1000.0, value=10000.0, step=500.0)
         risk_percent = st.number_input("Risk per trade (%)", min_value=0.1, max_value=5.0, value=1.0, step=0.1)
         max_position_percent = st.number_input("Max position size (%)", min_value=1.0, max_value=100.0, value=25.0, step=1.0)
         max_daily_loss_percent = st.number_input("Max daily loss (%)", min_value=0.5, max_value=10.0, value=3.0, step=0.5)
         st.divider()
-        st.subheader("Future Potential")
+        st.subheader("Optional: Future Watchlist")
         future_risk = st.selectbox("Future risk tolerance", ["Balanced", "Conservative", "Aggressive"])
         future_results = st.slider("Future names to show", 3, 9, 6)
         future_sectors = st.multiselect("Future sectors", ["All"] + sorted({item[2] for item in FUTURE_COMPANIES}), default=["All"])
 
     render_header()
-    run_scan = st.button("Start Analyzing", type="primary")
+    run_scan = st.button("Find Buy/Sell Setups", type="primary")
 
     if not run_scan and "plans" not in st.session_state:
-        st.info("Choose your universe and risk rules, then click Start Analyzing.")
+        st.info("Choose stocks and risk settings, then click Find Buy/Sell Setups.")
         st.caption("QuanTrade is a decision-support assistant. It does not guarantee outcomes.")
         return
 
@@ -554,97 +575,81 @@ def main():
     futures = st.session_state["futures"]
     risk_profile = st.session_state["risk_profile"]
 
-    trade_candidates = sum(1 for plan in plans if plan["decision"] == "Trade candidate")
-    watch_count = sum(1 for plan in plans if "Watch" in plan["decision"])
-    avoid_count = sum(1 for plan in plans if "Avoid" in plan["decision"])
+    buy_count = sum(1 for plan in plans if plan["decision"] == "BUY SETUP")
+    wait_count = sum(1 for plan in plans if plan["decision"] in ["WAIT FOR TRIGGER", "HOLD / WATCH"])
+    sell_count = sum(1 for plan in plans if plan["decision"] == "SELL / AVOID")
     avg_score = round(sum(plan["score"] for plan in plans) / len(plans), 1) if plans else 0
 
     c1, c2, c3, c4 = st.columns(4)
     c1.metric("Market Regime", regime["bias"].title())
-    c2.metric("Trade Candidates", trade_candidates)
-    c3.metric("Watchlist", watch_count)
-    c4.metric("Avg Quality", f"{avg_score}/100")
-    st.caption(f"Last scan: {st.session_state['last_scan']} · Data mode: {regime['source']}")
+    c2.metric("Buy Setups", buy_count)
+    c3.metric("Wait / Hold", wait_count)
+    c4.metric("Sell / Avoid", sell_count)
+    st.caption(f"Average quality: {avg_score}/100 · Last scan: {st.session_state['last_scan']} · Data mode: {regime['source']}")
 
-    command_tab, trade_tab, future_tab, risk_tab, assistant_tab, journal_tab = st.tabs(
-        ["Command Center", "Trade Setups", "Future Potential", "Risk Coach", "AI Assistant", "Journal"]
-    )
+    buy_plans = [plan for plan in plans if plan["decision"] == "BUY SETUP"]
+    wait_plans = [plan for plan in plans if plan["decision"] in ["WAIT FOR TRIGGER", "HOLD / WATCH"]]
+    sell_plans = [plan for plan in plans if plan["decision"] == "SELL / AVOID"]
 
-    with command_tab:
-        st.subheader("Today’s Trading Desk")
-        st.write(
-            "QuanTrade separates immediate trade setups from longer-term opportunity scouting. "
-            "A good result is not always a trade; sometimes the correct answer is watch, wait, or reduce size."
-        )
-        c1, c2, c3 = st.columns(3)
-        c1.metric("SPY", f"${regime['spy']['price']}", regime["spy"]["sector_trend"])
-        c2.metric("QQQ", f"${regime['qqq']['price']}", regime["qqq"]["sector_trend"])
-        c3.metric("Daily Loss Limit", f"${money(risk_profile.account_size * risk_profile.max_daily_loss_percent / 100)}")
-        st.warning("Before any live trade: confirm news, earnings date, spread, liquidity, and your personal risk limit.")
-
-    with trade_tab:
-        st.subheader("Short-Term Trade Setups")
-        st.caption("Entry, stop, targets, and position sizing are generated from the risk settings in the sidebar.")
-        for plan in plans:
+    st.subheader("Top Buy/Sell Recommendations")
+    if buy_plans:
+        st.markdown("### Consider Buying Only If Trigger Confirms")
+        for plan in buy_plans:
             render_plan(plan)
+    else:
+        st.warning("No clean buy setup found from this scan. Waiting is a valid trading decision.")
 
-    with future_tab:
-        st.subheader("Future Potential")
-        st.caption("Smaller and emerging companies are scored for watchlist quality, not guaranteed upside.")
-        for item in futures:
-            render_future_card(item)
+    with st.expander("Wait / Hold Candidates", expanded=True):
+        if wait_plans:
+            for plan in wait_plans:
+                render_plan(plan)
+        else:
+            st.caption("No wait/hold names in this scan.")
+
+    with st.expander("Sell / Avoid Candidates", expanded=True):
+        if sell_plans:
+            for plan in sell_plans:
+                render_plan(plan)
+        else:
+            st.caption("No sell/avoid names in this scan.")
+
+    st.divider()
+    risk_tab, future_tab, assistant_tab = st.tabs(["Risk Rules", "Future Watchlist", "Ask AI"])
 
     with risk_tab:
-        st.subheader("Risk Coach")
+        st.subheader("Risk Rules For This Scan")
         max_daily_loss = money(risk_profile.account_size * risk_profile.max_daily_loss_percent / 100)
         per_trade = money(risk_profile.account_size * risk_profile.risk_per_trade_percent / 100)
-        st.write("Risk rules QuanTrade will use:")
-        st.write(f"- Risk per trade: about ${per_trade}")
-        st.write(f"- Stop trading for the day near: ${max_daily_loss} loss")
-        st.write(f"- Max position size: {risk_profile.max_position_percent}% of account")
-        st.write("- Avoid adding to losing trades unless a separate plan was written before entry.")
-        st.write("- Prefer no trade over a low-quality setup.")
+        st.write(f"Risk per trade: about ${per_trade}")
+        st.write(f"Stop trading for the day near: ${max_daily_loss} loss")
+        st.write(f"Max position size: {risk_profile.max_position_percent}% of account")
+        st.write("Prefer no trade over a low-quality setup.")
+
+    with future_tab:
+        st.subheader("Future Watchlist")
+        st.caption("Longer-term opportunities are watchlist-first. They are not urgent buy/sell signals.")
+        for item in futures:
+            render_future_card(item)
 
     with assistant_tab:
         st.subheader("Ask QuanTrade")
         question = st.text_area(
             "Question",
-            placeholder="Ask QuanTrade about a stock, crypto, risk, market trend, or your trade plan...",
+            placeholder="Ask if a ticker is buy, sell/avoid, or wait based on this scan...",
             height=120,
         )
         if st.button("Ask AI Assistant", type="primary"):
             context = {
                 "market_regime": regime["bias"],
-                "top_trade_setups": [{"symbol": p["symbol"], "decision": p["decision"], "score": p["score"]} for p in plans[:5]],
-                "future_watchlist": [{"symbol": f["symbol"], "action": f["action"], "score": f["score"]} for f in futures[:5]],
+                "buy_setups": [{"symbol": p["symbol"], "score": p["score"], "entry": p["entry"], "stop": p["stop"]} for p in buy_plans],
+                "wait": [{"symbol": p["symbol"], "decision": p["decision"], "score": p["score"]} for p in wait_plans[:5]],
+                "sell_avoid": [{"symbol": p["symbol"], "score": p["score"]} for p in sell_plans[:5]],
             }
-            prompt = f"User question: {question}\n\nCurrent QuanTrade context:\n{json.dumps(context, indent=2)}"
+            prompt = f"User question: {question}\n\nCurrent QuanTrade buy/sell scan:\n{json.dumps(context, indent=2)}"
             st.write(openai_brief(prompt))
         st.caption("AI responses are informational and may be wrong. Verify before acting.")
 
-    with journal_tab:
-        st.subheader("Trade Journal")
-        st.write("Use this to build discipline after each trade.")
-        journal_symbol = st.text_input("Ticker")
-        journal_plan = st.text_area("Trade thesis / what you planned")
-        journal_result = st.text_area("Result / lesson")
-        if st.button("Save Journal Note"):
-            if "journal" not in st.session_state:
-                st.session_state["journal"] = []
-            st.session_state["journal"].append(
-                {
-                    "time": datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC"),
-                    "symbol": journal_symbol.upper(),
-                    "plan": journal_plan,
-                    "result": journal_result,
-                }
-            )
-        for note in reversed(st.session_state.get("journal", [])):
-            with st.container(border=True):
-                st.caption(note["time"])
-                st.write(f"Ticker: {note['symbol']}")
-                st.write(note["plan"])
-                st.write(note["result"])
+    return
 
 
 if __name__ == "__main__":
