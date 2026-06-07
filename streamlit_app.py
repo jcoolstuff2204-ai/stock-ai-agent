@@ -131,6 +131,13 @@ DEFAULT_UNIVERSES = {
         "NVDA", "AMD", "AAPL", "MSFT", "META", "AMZN", "GOOGL", "AVGO", "TSLA", "NFLX",
         "COIN", "MSTR", "PLTR", "SMCI", "JPM", "XOM", "SPY", "QQQ", "IWM", "MARA",
     ],
+    "Auto: Broad opportunity scan": [
+        "NVDA", "AMD", "AAPL", "MSFT", "META", "AMZN", "GOOGL", "AVGO", "TSLA", "NFLX",
+        "COIN", "MSTR", "PLTR", "SMCI", "JPM", "XOM", "SPY", "QQQ", "IWM", "MARA",
+        "TSM", "MU", "ARM", "INTC", "ORCL", "CRM", "NOW", "UBER", "SHOP", "SNOW",
+        "PANW", "CRWD", "NET", "DDOG", "HOOD", "SQ", "PYPL", "RBLX", "ROKU", "DKNG",
+        "NKE", "DIS", "COST", "WMT", "HD", "LLY", "UNH", "JPM", "BAC", "GS",
+    ],
     "Auto: AI and semiconductors": [
         "NVDA", "AMD", "AVGO", "SMCI", "ARM", "TSM", "MU", "PLTR", "SOUN", "AI",
     ],
@@ -554,6 +561,7 @@ def main():
         st.divider()
         st.subheader("1. Let Agent Scan")
         universe_name = st.selectbox("Market to scan", list(DEFAULT_UNIVERSES.keys()))
+        st.caption(f"The agent will scan {len(DEFAULT_UNIVERSES[universe_name])} symbols from this market group.")
         use_live_data = st.toggle("Use live Yahoo Finance data when available", value=True)
         max_results = st.slider("Recommendations to show", 3, 20, 10)
         with st.expander("Advanced: scan my own tickers"):
