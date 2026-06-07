@@ -2,6 +2,7 @@ import json
 import os
 from dataclasses import dataclass
 from datetime import datetime, timezone
+from textwrap import dedent
 
 import requests
 import streamlit as st
@@ -72,6 +73,11 @@ button[kind="primary"], .stButton > button {
   font-weight: 800 !important;
   min-height: 2.8rem;
   box-shadow: 0 0 22px rgba(0, 229, 255, 0.24);
+}
+
+button[kind="primary"] *, .stButton > button * {
+  color: var(--midnight-navy) !important;
+  font-weight: 850 !important;
 }
 
 button[kind="secondary"] {
@@ -346,6 +352,10 @@ button[kind="secondary"] {
 }
 </style>
 """
+
+
+def render_html(markup):
+    st.markdown(dedent(markup).strip(), unsafe_allow_html=True)
 
 
 @dataclass(frozen=True)
@@ -779,11 +789,11 @@ def logo_svg():
 
 
 def apply_brand_theme():
-    st.markdown(BRAND_CSS, unsafe_allow_html=True)
+    render_html(BRAND_CSS)
 
 
 def render_onboarding():
-    st.markdown(
+    render_html(
         f"""
         <section class="qt-hero">
           <div class="qt-brand-row">
@@ -805,8 +815,7 @@ def render_onboarding():
           </div>
           <p class="qt-disclaimer">For informational purposes only. Not financial advice.</p>
         </section>
-        """,
-        unsafe_allow_html=True,
+        """
     )
     st.button("Start Analyzing", type="primary", use_container_width=False)
 
@@ -833,66 +842,60 @@ def signal_state(plan):
 def render_dashboard(plans, market_regime, average_score, trade_candidates, watch_only):
     c1, c2, c3 = st.columns([1.25, 1, 1])
     with c1:
-        st.markdown(
+        render_html(
             metric_card(
                 "AI Market Signal",
                 market_regime["bias"].title(),
                 "From market noise to clear insights. Current sample regime supports selective setups.",
                 True,
-            ),
-            unsafe_allow_html=True,
+            )
         )
     with c2:
-        st.markdown(
+        render_html(
             metric_card(
                 "Risk Score",
                 f"{average_score}/100",
                 "Risk-aware trading support based on filters, trend, volume, and invalidation levels.",
-            ),
-            unsafe_allow_html=True,
+            )
         )
     with c3:
-        st.markdown(
+        render_html(
             metric_card(
                 "Top Opportunities",
                 str(trade_candidates),
                 f"{watch_only} additional names are watch-only until confirmation improves.",
-            ),
-            unsafe_allow_html=True,
+            )
         )
 
     c1, c2, c3 = st.columns(3)
     with c1:
-        st.markdown(
+        render_html(
             metric_card(
                 "Portfolio Snapshot",
                 "Risk-first",
                 "Position size is calculated from account risk, not emotion.",
-            ),
-            unsafe_allow_html=True,
+            )
         )
     with c2:
-        st.markdown(
+        render_html(
             metric_card(
                 "Watchlist",
                 ", ".join(plan["symbol"] for plan in plans if plan["decision"] != "Skip") or "None",
                 "Understand the signal before the trade.",
-            ),
-            unsafe_allow_html=True,
+            )
         )
     with c3:
-        st.markdown(
+        render_html(
             metric_card(
                 "Market News Summary",
                 "AI-ready",
                 "News and live catalysts are prepared for the next data integration stage.",
-            ),
-            unsafe_allow_html=True,
+            )
         )
 
 
 def render_assistant_panel():
-    st.markdown(
+    render_html(
         """
         <div class="qt-assistant">
           <div class="qt-card-label">AI Assistant</div>
@@ -906,8 +909,7 @@ def render_assistant_panel():
           </div>
           <p class="qt-disclaimer">For informational purposes only. Not financial advice.</p>
         </div>
-        """,
-        unsafe_allow_html=True,
+        """
     )
     question = st.text_input(
         "Ask QuanTrade",
@@ -924,7 +926,7 @@ def render_plan(plan):
     coach_notes = generate_coach_notes(plan)
 
     if plan["decision"] == "Skip":
-        st.markdown(
+        render_html(
             f"""
             <div class="{state_class}">
               <span class="qt-signal-pill">{state_label}</span>
@@ -936,8 +938,7 @@ def render_plan(plan):
               </div>
               <p class="qt-disclaimer">For informational purposes only. Not financial advice.</p>
             </div>
-            """,
-            unsafe_allow_html=True,
+            """
         )
         return
 
@@ -946,7 +947,7 @@ def render_plan(plan):
         warning_html = f"""<span class="qt-chip">Watch-only warning: {", ".join(plan["warnings"])}</span>"""
 
     evidence_html = "".join(f"""<span class="qt-chip">{item}</span>""" for item in plan.get("evidence", []))
-    st.markdown(
+    render_html(
         f"""
         <div class="{state_class}">
           <span class="qt-signal-pill">{state_label}</span>
@@ -968,8 +969,7 @@ def render_plan(plan):
           <div class="qt-chip-row">{evidence_html}{warning_html}</div>
           <p class="qt-disclaimer">For informational purposes only. Not financial advice.</p>
         </div>
-        """,
-        unsafe_allow_html=True,
+        """
     )
 
 
@@ -977,7 +977,7 @@ def main():
     apply_brand_theme()
 
     with st.sidebar:
-        st.markdown(logo_svg(), unsafe_allow_html=True)
+        render_html(logo_svg())
         st.header("QuanTrade AI Agent")
         st.caption("Smarter signals. Calmer trading.")
         st.divider()
