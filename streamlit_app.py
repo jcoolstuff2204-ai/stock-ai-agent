@@ -793,30 +793,20 @@ def apply_brand_theme():
 
 
 def render_onboarding():
-    render_html(
-        f"""
-        <section class="qt-hero">
-          <div class="qt-brand-row">
-            {logo_svg()}
-            <div>
-              <div class="qt-eyebrow">AI-powered market analysis assistant</div>
-              <div class="qt-tagline">Smarter signals. Calmer trading.</div>
-            </div>
-          </div>
-          <h1 class="qt-title">QuanTrade AI Agent</h1>
-          <p class="qt-subcopy">
-            AI-powered market insights for risk-aware decisions. Understand stocks, crypto,
-            market signals, risk, and portfolio opportunities before you trade.
-          </p>
-          <div class="qt-chip-row">
-            <span class="qt-chip">Trade with data, not emotion.</span>
-            <span class="qt-chip">Analyze risk before chasing reward.</span>
-            <span class="qt-chip">Signals are informational, not financial advice.</span>
-          </div>
-          <p class="qt-disclaimer">For informational purposes only. Not financial advice.</p>
-        </section>
-        """
-    )
+    with st.container(border=True):
+        logo_col, copy_col = st.columns([0.14, 0.86], vertical_alignment="center")
+        with logo_col:
+            render_html(logo_svg())
+        with copy_col:
+            st.caption("AI-powered market analysis assistant")
+            st.markdown("# QuanTrade AI Agent")
+            st.markdown("### Smarter signals. Calmer trading.")
+            st.write(
+                "AI-powered market insights for risk-aware decisions. Understand stocks, crypto, "
+                "market signals, risk, and portfolio opportunities before you trade."
+            )
+            st.caption("Trade with data, not emotion. Analyze risk before chasing reward.")
+            st.caption("For informational purposes only. Not financial advice.")
     st.button("Start Analyzing", type="primary", use_container_width=False)
 
 
