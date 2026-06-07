@@ -366,6 +366,14 @@ class RiskProfile:
     min_reward_risk: float = 1.8
 
 
+@dataclass(frozen=True)
+class FuturePotentialProfile:
+    risk_tolerance: str
+    time_horizon: str
+    max_results: int
+    sectors: list[str]
+
+
 MOCK_MARKET_DATA = [
     {
         "symbol": "NVDA",
@@ -528,6 +536,181 @@ def get_market_universe():
         stock("IWM", "iShares Russell 2000 ETF", 203.5, 204.2, 31_000_000, 0.91, 0.02, "weak", "mixed", "neutral", 365, 2.8, 200.7, 207.1, 205.3, 206.0),
         stock("MARA", "MARA Holdings", 19.6, 19.2, 52_000_000, 1.66, 0.11, "strong", "bullish", "positive", 37, 1.9, 18.1, 20.4, 18.8, 17.1),
     ]
+
+
+FUTURE_POTENTIAL_UNIVERSE = [
+    {
+        "symbol": "RXRX",
+        "name": "Recursion Pharmaceuticals",
+        "sector": "AI biotech",
+        "market_cap": "Small cap",
+        "price": 8.42,
+        "average_volume": 9_800_000,
+        "revenue_growth": 42,
+        "gross_margin": 74,
+        "cash_runway_months": 24,
+        "debt_risk": "medium",
+        "sector_tailwind": 92,
+        "moat": 78,
+        "institutional_interest": 72,
+        "valuation_risk": 76,
+        "volatility_risk": 84,
+        "liquidity_risk": "medium",
+        "catalyst": "AI drug-discovery pipeline progress and pharma partnerships",
+    },
+    {
+        "symbol": "IONQ",
+        "name": "IonQ",
+        "sector": "Quantum computing",
+        "market_cap": "Small cap",
+        "price": 10.18,
+        "average_volume": 14_500_000,
+        "revenue_growth": 78,
+        "gross_margin": 58,
+        "cash_runway_months": 30,
+        "debt_risk": "low",
+        "sector_tailwind": 88,
+        "moat": 74,
+        "institutional_interest": 64,
+        "valuation_risk": 88,
+        "volatility_risk": 90,
+        "liquidity_risk": "medium",
+        "catalyst": "Enterprise quantum adoption and government research demand",
+    },
+    {
+        "symbol": "SOUN",
+        "name": "SoundHound AI",
+        "sector": "AI software",
+        "market_cap": "Small cap",
+        "price": 4.91,
+        "average_volume": 33_000_000,
+        "revenue_growth": 54,
+        "gross_margin": 62,
+        "cash_runway_months": 18,
+        "debt_risk": "medium",
+        "sector_tailwind": 86,
+        "moat": 58,
+        "institutional_interest": 52,
+        "valuation_risk": 82,
+        "volatility_risk": 88,
+        "liquidity_risk": "medium",
+        "catalyst": "Voice AI adoption across auto, restaurant, and enterprise channels",
+    },
+    {
+        "symbol": "ASTS",
+        "name": "AST SpaceMobile",
+        "sector": "Space connectivity",
+        "market_cap": "Small cap",
+        "price": 9.74,
+        "average_volume": 18_800_000,
+        "revenue_growth": 20,
+        "gross_margin": 35,
+        "cash_runway_months": 16,
+        "debt_risk": "high",
+        "sector_tailwind": 84,
+        "moat": 83,
+        "institutional_interest": 57,
+        "valuation_risk": 86,
+        "volatility_risk": 92,
+        "liquidity_risk": "medium",
+        "catalyst": "Satellite-to-phone network milestones and telecom partnerships",
+    },
+    {
+        "symbol": "RKLB",
+        "name": "Rocket Lab",
+        "sector": "Space infrastructure",
+        "market_cap": "Small cap",
+        "price": 5.63,
+        "average_volume": 11_400_000,
+        "revenue_growth": 31,
+        "gross_margin": 28,
+        "cash_runway_months": 22,
+        "debt_risk": "medium",
+        "sector_tailwind": 80,
+        "moat": 76,
+        "institutional_interest": 61,
+        "valuation_risk": 72,
+        "volatility_risk": 79,
+        "liquidity_risk": "medium",
+        "catalyst": "Launch cadence, space systems backlog, and Neutron development",
+    },
+    {
+        "symbol": "ENVX",
+        "name": "Enovix",
+        "sector": "Battery technology",
+        "market_cap": "Small cap",
+        "price": 11.38,
+        "average_volume": 7_200_000,
+        "revenue_growth": 65,
+        "gross_margin": 22,
+        "cash_runway_months": 20,
+        "debt_risk": "medium",
+        "sector_tailwind": 78,
+        "moat": 70,
+        "institutional_interest": 55,
+        "valuation_risk": 80,
+        "volatility_risk": 82,
+        "liquidity_risk": "medium",
+        "catalyst": "Advanced battery commercialization and manufacturing scale-up",
+    },
+    {
+        "symbol": "CRSP",
+        "name": "CRISPR Therapeutics",
+        "sector": "Biotech",
+        "market_cap": "Mid cap",
+        "price": 54.72,
+        "average_volume": 1_900_000,
+        "revenue_growth": 36,
+        "gross_margin": 68,
+        "cash_runway_months": 36,
+        "debt_risk": "low",
+        "sector_tailwind": 75,
+        "moat": 86,
+        "institutional_interest": 73,
+        "valuation_risk": 66,
+        "volatility_risk": 70,
+        "liquidity_risk": "medium",
+        "catalyst": "Gene-editing therapies and pipeline execution",
+    },
+    {
+        "symbol": "JOBY",
+        "name": "Joby Aviation",
+        "sector": "Electric aviation",
+        "market_cap": "Small cap",
+        "price": 5.12,
+        "average_volume": 8_600_000,
+        "revenue_growth": 12,
+        "gross_margin": 18,
+        "cash_runway_months": 28,
+        "debt_risk": "low",
+        "sector_tailwind": 72,
+        "moat": 67,
+        "institutional_interest": 54,
+        "valuation_risk": 78,
+        "volatility_risk": 83,
+        "liquidity_risk": "medium",
+        "catalyst": "Certification progress and early commercial air taxi operations",
+    },
+    {
+        "symbol": "HIMS",
+        "name": "Hims & Hers Health",
+        "sector": "Digital health",
+        "market_cap": "Mid cap",
+        "price": 18.84,
+        "average_volume": 12_300_000,
+        "revenue_growth": 47,
+        "gross_margin": 80,
+        "cash_runway_months": 42,
+        "debt_risk": "low",
+        "sector_tailwind": 74,
+        "moat": 62,
+        "institutional_interest": 69,
+        "valuation_risk": 62,
+        "volatility_risk": 66,
+        "liquidity_risk": "low",
+        "catalyst": "Subscription health growth and margin expansion",
+    },
+]
 
 
 def money(value):
@@ -769,6 +952,99 @@ def scan_market(risk_profile, max_results):
     return market_regime, plans
 
 
+def risk_penalty(value):
+    return {
+        "low": 4,
+        "medium": 10,
+        "high": 18,
+    }.get(value, 10)
+
+
+def financial_health_score(company):
+    runway_score = min(100, company["cash_runway_months"] * 2.5)
+    debt_score = {"low": 88, "medium": 64, "high": 38}.get(company["debt_risk"], 55)
+    return round((runway_score * 0.42) + (company["gross_margin"] * 0.28) + (debt_score * 0.30))
+
+
+def future_action(score, company, profile):
+    if company["liquidity_risk"] == "high" or company["debt_risk"] == "high":
+        return "Watchlist only"
+    if profile.risk_tolerance == "Conservative":
+        if score >= 78 and company["market_cap"] == "Mid cap":
+            return "Starter candidate"
+        return "Watchlist only"
+    if profile.risk_tolerance == "Balanced":
+        if score >= 82:
+            return "Starter candidate"
+        if score >= 70:
+            return "Watchlist only"
+        return "Too speculative"
+    if score >= 78:
+        return "Starter candidate"
+    if score >= 66:
+        return "Watchlist only"
+    return "Too speculative"
+
+
+def scan_future_potential(profile):
+    allowed_sectors = set(profile.sectors)
+    results = []
+
+    for company in FUTURE_POTENTIAL_UNIVERSE:
+        if allowed_sectors and "All" not in allowed_sectors and company["sector"] not in allowed_sectors:
+            continue
+
+        growth = min(100, company["revenue_growth"])
+        financial = financial_health_score(company)
+        tailwind = company["sector_tailwind"]
+        moat = company["moat"]
+        institutional = company["institutional_interest"]
+        penalty = (
+            company["valuation_risk"] * 0.13
+            + company["volatility_risk"] * 0.12
+            + risk_penalty(company["liquidity_risk"])
+            + risk_penalty(company["debt_risk"])
+        )
+        score = round(
+            growth * 0.24
+            + financial * 0.22
+            + tailwind * 0.21
+            + moat * 0.18
+            + institutional * 0.15
+            - penalty
+            + 28
+        )
+        score = max(0, min(100, score))
+
+        results.append(
+            {
+                **company,
+                "score": score,
+                "growth_score": growth,
+                "financial_health": financial,
+                "action": future_action(score, company, profile),
+                "suggested_plan": future_plan(company, score, profile),
+            }
+        )
+
+    results.sort(key=lambda item: item["score"], reverse=True)
+    return results[: profile.max_results]
+
+
+def future_plan(company, score, profile):
+    if score >= 82 and company["debt_risk"] != "high":
+        sizing = "Small starter size only, such as 0.5%-1% portfolio risk."
+    elif score >= 70:
+        sizing = "Watchlist first. Wait for earnings, volume, or breakout confirmation."
+    else:
+        sizing = "Avoid new exposure until financial or execution risk improves."
+
+    return (
+        f"{profile.time_horizon} horizon. {sizing} Main catalyst: {company['catalyst']}. "
+        "Review liquidity, cash runway, and earnings updates before acting."
+    )
+
+
 def generate_coach_notes(plan):
     api_key = get_secret("OPENAI_API_KEY")
     model = get_secret("OPENAI_MODEL", "gpt-4.1-mini")
@@ -971,6 +1247,62 @@ def render_assistant_panel():
         st.info("Assistant chat wiring is ready for the next step. Market analysis responses will use your OpenAI key and live data adapters.")
 
 
+def render_future_card(item):
+    action_class = "qt-signal-buy" if item["action"] == "Starter candidate" else "qt-signal-hold"
+    if item["action"] == "Too speculative":
+        action_class = "qt-signal-sell"
+
+    render_html(
+        f"""
+        <div class="qt-signal {action_class}">
+          <span class="qt-signal-pill">{item['action']}</span>
+          <div class="qt-signal-title">{item['symbol']} · {item['name']}</div>
+          <p class="qt-card-copy">{item['market_cap']} · {item['sector']} · Future Potential {item['score']}/100</p>
+          <div class="qt-levels">
+            <div class="qt-level"><span>Growth</span><strong>{item['growth_score']}/100</strong></div>
+            <div class="qt-level"><span>Financial Health</span><strong>{item['financial_health']}/100</strong></div>
+            <div class="qt-level"><span>Sector Tailwind</span><strong>{item['sector_tailwind']}/100</strong></div>
+            <div class="qt-level"><span>Moat</span><strong>{item['moat']}/100</strong></div>
+            <div class="qt-level"><span>Valuation Risk</span><strong>{item['valuation_risk']}/100</strong></div>
+            <div class="qt-level"><span>Volatility Risk</span><strong>{item['volatility_risk']}/100</strong></div>
+            <div class="qt-level"><span>Cash Runway</span><strong>{item['cash_runway_months']} mo</strong></div>
+            <div class="qt-level"><span>Liquidity</span><strong>{item['liquidity_risk'].title()}</strong></div>
+          </div>
+          <p class="qt-card-copy">{item['suggested_plan']}</p>
+          <div class="qt-chip-row">
+            <span class="qt-chip">Catalyst: {item['catalyst']}</span>
+            <span class="qt-chip">Debt risk: {item['debt_risk'].title()}</span>
+            <span class="qt-chip">Avg volume: {item['average_volume']:,}</span>
+          </div>
+          <p class="qt-disclaimer">For informational purposes only. Not financial advice.</p>
+        </div>
+        """
+    )
+
+
+def render_future_potential_panel(profile):
+    results = scan_future_potential(profile)
+    starter_count = sum(1 for item in results if item["action"] == "Starter candidate")
+    watch_count = sum(1 for item in results if item["action"] == "Watchlist only")
+    average_score = round(sum(item["score"] for item in results) / len(results), 1) if results else 0
+
+    c1, c2, c3 = st.columns(3)
+    with c1:
+        render_html(metric_card("Future Potential", f"{average_score}/100", "Growth, financial health, tailwinds, moat, and risk are scored separately.", True))
+    with c2:
+        render_html(metric_card("Starter Candidates", str(starter_count), "Small starter size only. This mode is for opportunity scouting, not urgent trades."))
+    with c3:
+        render_html(metric_card("Watchlist", str(watch_count), "Track execution, earnings, cash runway, and liquidity before acting."))
+
+    st.caption("Smaller-market stocks can move fast, but they also carry higher liquidity, dilution, and execution risk.")
+    if not results:
+        st.warning("No future-potential names matched the selected sector filters.")
+        return
+
+    for item in results:
+        render_future_card(item)
+
+
 def render_plan(plan):
     state, state_label = signal_state(plan)
     state_class = f"qt-signal qt-signal-{state}"
@@ -1038,6 +1370,13 @@ def main():
         max_position_percent = st.number_input("Max position size (%)", min_value=1.0, max_value=100.0, value=25.0, step=1.0)
         max_results = st.slider("Signals to show", min_value=5, max_value=20, value=10, step=1)
         st.divider()
+        st.subheader("Future Potential")
+        future_risk = st.selectbox("Risk tolerance", ["Balanced", "Conservative", "Aggressive"])
+        future_horizon = st.selectbox("Time horizon", ["6-24 month", "3-12 month", "2-5 year"])
+        future_results = st.slider("Future names to show", min_value=3, max_value=9, value=6, step=1)
+        available_sectors = ["All"] + sorted({item["sector"] for item in FUTURE_POTENTIAL_UNIVERSE})
+        future_sectors = st.multiselect("Sectors", available_sectors, default=["All"])
+        st.divider()
         st.caption("Analyze before you trade.")
         st.caption("Signals are informational, not financial advice.")
 
@@ -1058,6 +1397,12 @@ def main():
         risk_per_trade_percent=risk_percent,
         max_position_percent=max_position_percent,
     )
+    future_profile = FuturePotentialProfile(
+        risk_tolerance=future_risk,
+        time_horizon=future_horizon,
+        max_results=future_results,
+        sectors=future_sectors,
+    )
     market_regime, plans = scan_market(risk_profile, max_results)
 
     trade_candidates = sum(1 for plan in plans if plan["decision"] == "Trade candidate")
@@ -1069,7 +1414,7 @@ def main():
         f"Updated: {datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M UTC')}"
     )
 
-    dashboard_tab, signals_tab, assistant_tab = st.tabs(["Dashboard", "Signals", "AI Assistant"])
+    dashboard_tab, signals_tab, future_tab, assistant_tab = st.tabs(["Dashboard", "Signals", "Future Potential", "AI Assistant"])
 
     with dashboard_tab:
         render_dashboard(plans, market_regime, average_score, trade_candidates, watch_only)
@@ -1079,6 +1424,11 @@ def main():
         st.caption(f"Showing {len(plans)} ranked signals from {len(get_market_universe())} sample market candidates.")
         for plan in plans:
             render_plan(plan)
+
+    with future_tab:
+        st.markdown("### Future Potential")
+        st.caption("Opportunity scouting for smaller or emerging companies. This is separate from short-term trade timing.")
+        render_future_potential_panel(future_profile)
 
     with assistant_tab:
         render_assistant_panel()
