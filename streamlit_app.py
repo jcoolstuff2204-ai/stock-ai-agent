@@ -127,15 +127,18 @@ button[kind="primary"] *, .stButton > button * {
 
 
 DEFAULT_UNIVERSES = {
-    "High-liquidity leaders": [
+    "Auto: Market leaders": [
         "NVDA", "AMD", "AAPL", "MSFT", "META", "AMZN", "GOOGL", "AVGO", "TSLA", "NFLX",
         "COIN", "MSTR", "PLTR", "SMCI", "JPM", "XOM", "SPY", "QQQ", "IWM", "MARA",
     ],
-    "AI and semiconductors": [
+    "Auto: AI and semiconductors": [
         "NVDA", "AMD", "AVGO", "SMCI", "ARM", "TSM", "MU", "PLTR", "SOUN", "AI",
     ],
-    "Future potential watchlist": [
+    "Auto: Future potential": [
         "RXRX", "IONQ", "SOUN", "ASTS", "RKLB", "ENVX", "CRSP", "JOBY", "HIMS", "PLTR",
+    ],
+    "Auto: ETFs and index pulse": [
+        "SPY", "QQQ", "IWM", "DIA", "XLK", "XLF", "XLE", "SMH", "ARKK", "IBB",
     ],
 }
 
@@ -471,11 +474,11 @@ def render_header():
         left, right = st.columns([0.72, 0.28], vertical_alignment="center")
         with left:
             st.caption("AI-powered market analysis")
-            st.title("What should I buy, wait on, or avoid?")
-            st.subheader("QuanTrade ranks your stock list and builds a risk plan for each setup.")
+            st.title("Let the agent scan for buy/sell setups.")
+            st.subheader("QuanTrade searches a market universe and brings back ranked recommendations.")
             st.write(
-                "Start with a universe, set your account risk, then review clear recommendations with entry, stop, "
-                "targets, position size, and the reason to skip."
+                "Choose the market area to scan, set your risk rules, then review clear recommendations with entry, "
+                "stop, targets, position size, and the reason to skip."
             )
             st.caption("For informational purposes only. Not financial advice.")
         with right:
@@ -549,11 +552,13 @@ def main():
     with st.sidebar:
         render_logo()
         st.divider()
-        st.subheader("1. Pick Stocks")
-        universe_name = st.selectbox("Universe", list(DEFAULT_UNIVERSES.keys()))
-        custom = st.text_area("Custom tickers", value=", ".join(DEFAULT_UNIVERSES[universe_name]), height=110)
+        st.subheader("1. Let Agent Scan")
+        universe_name = st.selectbox("Market to scan", list(DEFAULT_UNIVERSES.keys()))
         use_live_data = st.toggle("Use live Yahoo Finance data when available", value=True)
         max_results = st.slider("Recommendations to show", 3, 20, 10)
+        with st.expander("Advanced: scan my own tickers"):
+            use_custom_tickers = st.checkbox("Override market scan with custom tickers", value=False)
+            custom = st.text_area("Custom tickers", value=", ".join(DEFAULT_UNIVERSES[universe_name]), height=90)
         st.divider()
         st.subheader("2. Set Risk")
         account_size = st.number_input("Account size", min_value=1000.0, value=10000.0, step=500.0)
@@ -567,15 +572,15 @@ def main():
         future_sectors = st.multiselect("Future sectors", ["All"] + sorted({item[2] for item in FUTURE_COMPANIES}), default=["All"])
 
     render_header()
-    run_scan = st.button("Find Buy/Sell Setups", type="primary")
+    run_scan = st.button("Scan Market For Buy/Sell Setups", type="primary")
 
     if not run_scan and "plans" not in st.session_state:
-        st.info("Choose stocks and risk settings, then click Find Buy/Sell Setups.")
+        st.info("Choose a market universe and risk settings, then click Scan Market For Buy/Sell Setups.")
         st.caption("QuanTrade is a decision-support assistant. It does not guarantee outcomes.")
         return
 
     if run_scan:
-        tickers = clean_tickers(custom)
+        tickers = clean_tickers(custom) if use_custom_tickers else DEFAULT_UNIVERSES[universe_name]
         risk_profile = RiskProfile(account_size, risk_percent, max_position_percent, max_daily_loss_percent)
         with st.spinner("Scanning market, scoring setups, and building risk-aware plans..."):
             regime, plans = scan_trades(tickers, risk_profile, use_live_data, max_results)
@@ -585,6 +590,8 @@ def main():
         st.session_state["futures"] = futures
         st.session_state["risk_profile"] = risk_profile
         st.session_state["last_scan"] = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC")
+        st.session_state["scan_universe"] = "Custom tickers" if use_custom_tickers else universe_name
+        st.session_state["scanned_count"] = len(tickers)
 
     regime = st.session_state["regime"]
     plans = st.session_state["plans"]
@@ -601,13 +608,17 @@ def main():
     c2.metric("Buy Setups", buy_count)
     c3.metric("Wait / Hold", wait_count)
     c4.metric("Sell / Avoid", sell_count)
-    st.caption(f"Average quality: {avg_score}/100 · Last scan: {st.session_state['last_scan']} · Data mode: {regime['source']}")
+    st.caption(
+        f"Scanned: {st.session_state.get('scan_universe', universe_name)} · "
+        f"{st.session_state.get('scanned_count', len(plans))} symbols · Average quality: {avg_score}/100 · "
+        f"Last scan: {st.session_state['last_scan']} · Data mode: {regime['source']}"
+    )
 
     buy_plans = [plan for plan in plans if plan["decision"] == "BUY SETUP"]
     wait_plans = [plan for plan in plans if plan["decision"] in ["WAIT FOR TRIGGER", "HOLD / WATCH"]]
     sell_plans = [plan for plan in plans if plan["decision"] == "SELL / AVOID"]
 
-    st.subheader("Top Buy/Sell Recommendations")
+    st.subheader("Agent Recommendations")
     if buy_plans:
         st.markdown("### Consider Buying Only If Trigger Confirms")
         for plan in buy_plans:
