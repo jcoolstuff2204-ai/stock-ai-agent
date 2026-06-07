@@ -1,17 +1,19 @@
-# Stock AI Agent
+# QuanTrade AI Agent
 
-Short-term stock market scanner and financial-assistant foundation.
+Smarter signals. Calmer trading.
 
-The first version focuses on disciplined trade planning:
+QuanTrade AI Agent is an AI-powered market analysis assistant for stocks, crypto, market signals, risk, and portfolio opportunities. It is designed to support better decision-making with risk-aware trading support, not to promise outcomes.
+
+The first version focuses on disciplined market analysis:
 
 - Automatically scans a market universe.
 - Filters for liquid short-term setups.
 - Scores trade quality.
 - Suggests when to buy, when to sell, and how much to buy.
 - Calculates max loss from account risk settings.
-- Uses OpenAI to explain the trade plan when enabled.
+- Uses OpenAI to explain trade plans when enabled.
 
-This is not financial advice. It is a decision-support tool. Start with paper trading before using any live broker connection.
+Signals are informational only and are not financial advice. Start with paper trading before using any live broker connection.
 
 ## Run
 

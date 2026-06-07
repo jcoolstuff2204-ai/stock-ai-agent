@@ -8,11 +8,344 @@ import streamlit as st
 
 
 st.set_page_config(
-    page_title="Stock AI Agent",
-    page_icon="📈",
+    page_title="QuanTrade AI Agent",
     layout="wide",
     initial_sidebar_state="expanded",
 )
+
+
+BRAND_CSS = """
+<style>
+:root {
+  --midnight-navy: #0B1020;
+  --card-dark: #111827;
+  --electric-cyan: #00E5FF;
+  --ai-purple: #7C3AED;
+  --profit-green: #22C55E;
+  --risk-red: #EF4444;
+  --soft-gray: #CBD5E1;
+  --deep-border: #334155;
+  --muted-panel: #0F172A;
+  --brand-gradient: linear-gradient(135deg, #00E5FF 0%, #7C3AED 100%);
+}
+
+html, body, [data-testid="stAppViewContainer"], [data-testid="stHeader"] {
+  background: radial-gradient(circle at top left, rgba(0, 229, 255, 0.10), transparent 30%),
+    radial-gradient(circle at top right, rgba(124, 58, 237, 0.12), transparent 34%),
+    var(--midnight-navy) !important;
+}
+
+[data-testid="stSidebar"] {
+  background: #080D1B !important;
+  border-right: 1px solid var(--deep-border);
+}
+
+[data-testid="stSidebar"] * {
+  color: var(--soft-gray);
+}
+
+.block-container {
+  max-width: 1220px;
+  padding-top: 2.2rem;
+  padding-bottom: 4rem;
+}
+
+h1, h2, h3, h4, p, label, span, div {
+  font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "SF Pro Display", "Segoe UI", sans-serif;
+}
+
+h1, h2, h3 {
+  color: #FFFFFF !important;
+  font-weight: 800 !important;
+  letter-spacing: 0 !important;
+}
+
+p, .stCaption, [data-testid="stMarkdownContainer"] {
+  color: var(--soft-gray);
+}
+
+button[kind="primary"], .stButton > button {
+  background: var(--electric-cyan) !important;
+  color: var(--midnight-navy) !important;
+  border: 0 !important;
+  border-radius: 14px !important;
+  font-weight: 800 !important;
+  min-height: 2.8rem;
+  box-shadow: 0 0 22px rgba(0, 229, 255, 0.24);
+}
+
+button[kind="secondary"] {
+  background: var(--card-dark) !important;
+  color: var(--soft-gray) !important;
+  border: 1px solid var(--deep-border) !important;
+  border-radius: 14px !important;
+  font-weight: 700 !important;
+}
+
+[data-testid="stMetric"] {
+  background: var(--card-dark);
+  border: 1px solid var(--deep-border);
+  border-radius: 20px;
+  padding: 1rem;
+}
+
+[data-testid="stMetricValue"], [data-testid="stMetricDelta"] {
+  font-variant-numeric: tabular-nums;
+}
+
+.qt-hero {
+  position: relative;
+  overflow: hidden;
+  padding: 2rem;
+  border: 1px solid rgba(0, 229, 255, 0.28);
+  border-radius: 24px;
+  background:
+    linear-gradient(135deg, rgba(17, 24, 39, 0.96), rgba(11, 16, 32, 0.92)),
+    radial-gradient(circle at 85% 20%, rgba(124, 58, 237, 0.28), transparent 30%);
+  box-shadow: 0 24px 80px rgba(0, 0, 0, 0.30);
+}
+
+.qt-hero::after {
+  content: "";
+  position: absolute;
+  inset: auto -10% -38% 52%;
+  height: 260px;
+  background: var(--brand-gradient);
+  filter: blur(70px);
+  opacity: 0.22;
+}
+
+.qt-brand-row {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+}
+
+.qt-logo {
+  width: 64px;
+  height: 64px;
+  flex: 0 0 auto;
+  border-radius: 18px;
+  display: grid;
+  place-items: center;
+  background: #0B1020;
+  border: 1px solid rgba(0, 229, 255, 0.32);
+  box-shadow: 0 0 28px rgba(0, 229, 255, 0.18);
+}
+
+.qt-logo svg {
+  width: 42px;
+  height: 42px;
+}
+
+.qt-eyebrow {
+  color: var(--electric-cyan);
+  font-size: 0.78rem;
+  font-weight: 800;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.qt-title {
+  margin: 0.6rem 0 0.3rem;
+  color: #FFFFFF;
+  font-size: clamp(2.1rem, 4vw, 4.4rem);
+  line-height: 0.98;
+  font-weight: 850;
+  letter-spacing: 0;
+}
+
+.qt-tagline {
+  color: #FFFFFF;
+  font-size: clamp(1.15rem, 2vw, 1.6rem);
+  font-weight: 720;
+}
+
+.qt-subcopy {
+  max-width: 680px;
+  margin-top: 0.9rem;
+  color: var(--soft-gray);
+  font-size: 1rem;
+  line-height: 1.7;
+}
+
+.qt-disclaimer {
+  margin-top: 1rem;
+  color: #94A3B8;
+  font-size: 0.82rem;
+}
+
+.qt-card {
+  height: 100%;
+  padding: 1.25rem;
+  border: 1px solid var(--deep-border);
+  border-radius: 22px;
+  background: rgba(17, 24, 39, 0.94);
+  box-shadow: 0 16px 46px rgba(0, 0, 0, 0.24);
+}
+
+.qt-card-gradient {
+  border: 1px solid rgba(0, 229, 255, 0.34);
+  background:
+    linear-gradient(#111827, #111827) padding-box,
+    var(--brand-gradient) border-box;
+}
+
+.qt-card-label {
+  color: #94A3B8;
+  font-size: 0.76rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.qt-card-value {
+  margin-top: 0.35rem;
+  color: #FFFFFF;
+  font-size: 1.7rem;
+  font-weight: 820;
+  font-variant-numeric: tabular-nums;
+}
+
+.qt-card-copy {
+  margin-top: 0.55rem;
+  color: var(--soft-gray);
+  line-height: 1.55;
+}
+
+.qt-chip-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-top: 0.8rem;
+}
+
+.qt-chip {
+  display: inline-flex;
+  align-items: center;
+  min-height: 28px;
+  padding: 0.28rem 0.65rem;
+  border: 1px solid var(--deep-border);
+  border-radius: 999px;
+  background: #0F172A;
+  color: var(--soft-gray);
+  font-size: 0.78rem;
+  font-weight: 700;
+}
+
+.qt-signal {
+  padding: 1.25rem;
+  border: 1px solid var(--deep-border);
+  border-radius: 22px;
+  background: var(--card-dark);
+}
+
+.qt-signal-buy {
+  border-color: rgba(34, 197, 94, 0.48);
+  box-shadow: 0 0 28px rgba(34, 197, 94, 0.08);
+}
+
+.qt-signal-hold {
+  border-color: rgba(0, 229, 255, 0.38);
+}
+
+.qt-signal-sell {
+  border-color: rgba(239, 68, 68, 0.45);
+}
+
+.qt-signal-pill {
+  display: inline-flex;
+  padding: 0.32rem 0.68rem;
+  border-radius: 999px;
+  font-size: 0.74rem;
+  font-weight: 850;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.qt-signal-buy .qt-signal-pill {
+  background: rgba(34, 197, 94, 0.14);
+  color: var(--profit-green);
+}
+
+.qt-signal-hold .qt-signal-pill {
+  background: rgba(0, 229, 255, 0.12);
+  color: var(--electric-cyan);
+}
+
+.qt-signal-sell .qt-signal-pill {
+  background: rgba(239, 68, 68, 0.13);
+  color: var(--risk-red);
+}
+
+.qt-signal-title {
+  margin-top: 0.85rem;
+  color: #FFFFFF;
+  font-size: 1.35rem;
+  font-weight: 820;
+}
+
+.qt-levels {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 0.75rem;
+  margin-top: 1rem;
+}
+
+.qt-level {
+  padding: 0.8rem;
+  border: 1px solid var(--deep-border);
+  border-radius: 16px;
+  background: #0F172A;
+}
+
+.qt-level span {
+  display: block;
+  color: #94A3B8;
+  font-size: 0.72rem;
+  font-weight: 780;
+  text-transform: uppercase;
+}
+
+.qt-level strong {
+  display: block;
+  margin-top: 0.28rem;
+  color: #FFFFFF;
+  font-size: 1.02rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.qt-assistant {
+  padding: 1.35rem;
+  border: 1px solid rgba(124, 58, 237, 0.42);
+  border-radius: 24px;
+  background:
+    linear-gradient(135deg, rgba(17, 24, 39, 0.98), rgba(15, 23, 42, 0.96)),
+    radial-gradient(circle at 90% 10%, rgba(124, 58, 237, 0.26), transparent 28%);
+}
+
+.qt-input-placeholder {
+  padding: 1rem;
+  border: 1px solid var(--deep-border);
+  border-radius: 16px;
+  background: #0B1020;
+  color: #94A3B8;
+}
+
+.qt-muted {
+  color: #94A3B8;
+}
+
+@media (max-width: 760px) {
+  .qt-hero {
+    padding: 1.35rem;
+  }
+  .qt-levels {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+</style>
+"""
 
 
 @dataclass(frozen=True)
@@ -410,7 +743,7 @@ def generate_coach_notes(plan):
 
 def fallback_coach_notes(plan):
     if plan["decision"] != "Trade candidate":
-        return "No high-quality trade yet. Keep this on watch and wait for stronger confirmation."
+        return "No high-quality signal yet. Keep this on watch and wait for stronger confirmation before making a decision."
 
     return (
         f"{plan['symbol']} is a {plan['grade']} setup, but only if the entry trigger confirms. "
@@ -419,60 +752,242 @@ def fallback_coach_notes(plan):
     )
 
 
+def logo_svg():
+    return """
+    <div class="qt-logo" aria-label="QuanTrade AI Agent logo">
+      <svg viewBox="0 0 64 64" role="img">
+        <defs>
+          <linearGradient id="qtGradient" x1="10" y1="54" x2="54" y2="10" gradientUnits="userSpaceOnUse">
+            <stop offset="0" stop-color="#00E5FF"/>
+            <stop offset="1" stop-color="#7C3AED"/>
+          </linearGradient>
+          <filter id="qtGlow">
+            <feGaussianBlur stdDeviation="2.6" result="blur"/>
+            <feMerge>
+              <feMergeNode in="blur"/>
+              <feMergeNode in="SourceGraphic"/>
+            </feMerge>
+          </filter>
+        </defs>
+        <rect x="4" y="4" width="56" height="56" rx="16" fill="#0B1020" stroke="#334155"/>
+        <path d="M15 42 L25 32 L33 37 L49 18" fill="none" stroke="url(#qtGradient)" stroke-width="5" stroke-linecap="round" stroke-linejoin="round" filter="url(#qtGlow)"/>
+        <path d="M39 18 H49 V28" fill="none" stroke="url(#qtGradient)" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"/>
+        <path d="M18 20 H23 M18 27 H21 M42 43 H47 M39 49 H47" stroke="#00E5FF" stroke-width="2" stroke-linecap="round" opacity="0.55"/>
+      </svg>
+    </div>
+    """
+
+
+def apply_brand_theme():
+    st.markdown(BRAND_CSS, unsafe_allow_html=True)
+
+
+def render_onboarding():
+    st.markdown(
+        f"""
+        <section class="qt-hero">
+          <div class="qt-brand-row">
+            {logo_svg()}
+            <div>
+              <div class="qt-eyebrow">AI-powered market analysis assistant</div>
+              <div class="qt-tagline">Smarter signals. Calmer trading.</div>
+            </div>
+          </div>
+          <h1 class="qt-title">QuanTrade AI Agent</h1>
+          <p class="qt-subcopy">
+            AI-powered market insights for risk-aware decisions. Understand stocks, crypto,
+            market signals, risk, and portfolio opportunities before you trade.
+          </p>
+          <div class="qt-chip-row">
+            <span class="qt-chip">Trade with data, not emotion.</span>
+            <span class="qt-chip">Analyze risk before chasing reward.</span>
+            <span class="qt-chip">Signals are informational, not financial advice.</span>
+          </div>
+          <p class="qt-disclaimer">For informational purposes only. Not financial advice.</p>
+        </section>
+        """,
+        unsafe_allow_html=True,
+    )
+    st.button("Start Analyzing", type="primary", use_container_width=False)
+
+
+def metric_card(label, value, copy, gradient=False):
+    class_name = "qt-card qt-card-gradient" if gradient else "qt-card"
+    return f"""
+    <div class="{class_name}">
+      <div class="qt-card-label">{label}</div>
+      <div class="qt-card-value">{value}</div>
+      <div class="qt-card-copy">{copy}</div>
+    </div>
+    """
+
+
+def signal_state(plan):
+    if plan["decision"] == "Trade candidate":
+        return "buy", "Bullish / Buy setup"
+    if plan["decision"] == "Watch only":
+        return "hold", "Hold / Neutral watch"
+    return "sell", "Bearish / Avoid"
+
+
+def render_dashboard(plans, market_regime, average_score, trade_candidates, watch_only):
+    c1, c2, c3 = st.columns([1.25, 1, 1])
+    with c1:
+        st.markdown(
+            metric_card(
+                "AI Market Signal",
+                market_regime["bias"].title(),
+                "From market noise to clear insights. Current sample regime supports selective setups.",
+                True,
+            ),
+            unsafe_allow_html=True,
+        )
+    with c2:
+        st.markdown(
+            metric_card(
+                "Risk Score",
+                f"{average_score}/100",
+                "Risk-aware trading support based on filters, trend, volume, and invalidation levels.",
+            ),
+            unsafe_allow_html=True,
+        )
+    with c3:
+        st.markdown(
+            metric_card(
+                "Top Opportunities",
+                str(trade_candidates),
+                f"{watch_only} additional names are watch-only until confirmation improves.",
+            ),
+            unsafe_allow_html=True,
+        )
+
+    c1, c2, c3 = st.columns(3)
+    with c1:
+        st.markdown(
+            metric_card(
+                "Portfolio Snapshot",
+                "Risk-first",
+                "Position size is calculated from account risk, not emotion.",
+            ),
+            unsafe_allow_html=True,
+        )
+    with c2:
+        st.markdown(
+            metric_card(
+                "Watchlist",
+                ", ".join(plan["symbol"] for plan in plans if plan["decision"] != "Skip") or "None",
+                "Understand the signal before the trade.",
+            ),
+            unsafe_allow_html=True,
+        )
+    with c3:
+        st.markdown(
+            metric_card(
+                "Market News Summary",
+                "AI-ready",
+                "News and live catalysts are prepared for the next data integration stage.",
+            ),
+            unsafe_allow_html=True,
+        )
+
+
+def render_assistant_panel():
+    st.markdown(
+        """
+        <div class="qt-assistant">
+          <div class="qt-card-label">AI Assistant</div>
+          <div class="qt-card-value">Your AI co-pilot for market decisions.</div>
+          <p class="qt-card-copy">
+            Ask QuanTrade about a stock, crypto, risk, or market trend. The assistant is designed
+            to help analyze before you trade, not promise outcomes.
+          </p>
+          <div class="qt-input-placeholder">
+            Ask QuanTrade about a stock, crypto, risk, or market trend...
+          </div>
+          <p class="qt-disclaimer">For informational purposes only. Not financial advice.</p>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+    question = st.text_input(
+        "Ask QuanTrade",
+        placeholder="Ask QuanTrade about a stock, crypto, risk, or market trend...",
+        label_visibility="collapsed",
+    )
+    if question:
+        st.info("Assistant chat wiring is ready for the next step. Market analysis responses will use your OpenAI key and live data adapters.")
+
+
 def render_plan(plan):
-    badge_color = "green" if plan["decision"] == "Trade candidate" else "orange" if plan["decision"] == "Watch only" else "red"
+    state, state_label = signal_state(plan)
+    state_class = f"qt-signal qt-signal-{state}"
+    coach_notes = generate_coach_notes(plan)
 
-    with st.container(border=True):
-        left, right = st.columns([3, 1])
-        with left:
-            st.subheader(f"{plan['symbol']} · {plan['company']}")
-            st.caption(f"{plan['decision']} · {plan['setup']}")
-        with right:
-            st.metric("Trade Quality", f"{plan['score']}/100", plan["grade"])
+    if plan["decision"] == "Skip":
+        st.markdown(
+            f"""
+            <div class="{state_class}">
+              <span class="qt-signal-pill">{state_label}</span>
+              <div class="qt-signal-title">{plan['symbol']} · {plan['company']}</div>
+              <p class="qt-card-copy">{plan['decision']} · {plan['setup']} · Trade Quality {plan['score']}/100 · Grade {plan['grade']}</p>
+              <p class="qt-card-copy">{coach_notes}</p>
+              <div class="qt-chip-row">
+                <span class="qt-chip">{plan['invalidation']}</span>
+              </div>
+              <p class="qt-disclaimer">For informational purposes only. Not financial advice.</p>
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
+        return
 
-        st.markdown(f":{badge_color}[{plan['decision']}]")
-        st.write(generate_coach_notes(plan))
+    warning_html = ""
+    if plan.get("warnings"):
+        warning_html = f"""<span class="qt-chip">Watch-only warning: {", ".join(plan["warnings"])}</span>"""
 
-        if plan["decision"] == "Skip":
-            st.warning(plan["invalidation"])
-            return
-
-        col1, col2, col3, col4 = st.columns(4)
-        col1.metric("Entry", f"${plan['entry']['price']}")
-        col2.metric("Stop", f"${plan['exit']['stop_loss']}")
-        col3.metric("Target 1", f"${plan['exit']['target1']}")
-        col4.metric("Target 2", f"${plan['exit']['target2']}")
-
-        col1, col2, col3, col4 = st.columns(4)
-        col1.metric("Shares", plan["sizing"]["shares"])
-        col2.metric("Position", f"${plan['sizing']['position_value']}")
-        col3.metric("Max Loss", f"${plan['sizing']['estimated_max_loss']}")
-        col4.metric("Risk / Share", f"${plan['sizing']['risk_per_share']}")
-
-        st.write(plan["entry"]["trigger"])
-        st.write(plan["invalidation"])
-
-        if plan.get("evidence"):
-            st.markdown("**Evidence**")
-            st.write(", ".join(plan["evidence"]))
-
-        if plan.get("warnings"):
-            st.warning("Watch-only warning: " + ", ".join(plan["warnings"]))
+    evidence_html = "".join(f"""<span class="qt-chip">{item}</span>""" for item in plan.get("evidence", []))
+    st.markdown(
+        f"""
+        <div class="{state_class}">
+          <span class="qt-signal-pill">{state_label}</span>
+          <div class="qt-signal-title">{plan['symbol']} · {plan['company']}</div>
+          <p class="qt-card-copy">{plan['decision']} · {plan['setup']} · Trade Quality {plan['score']}/100 · Grade {plan['grade']}</p>
+          <p class="qt-card-copy">{coach_notes}</p>
+          <div class="qt-levels">
+            <div class="qt-level"><span>Entry</span><strong>${plan['entry']['price']}</strong></div>
+            <div class="qt-level"><span>Stop</span><strong>${plan['exit']['stop_loss']}</strong></div>
+            <div class="qt-level"><span>Target 1</span><strong>${plan['exit']['target1']}</strong></div>
+            <div class="qt-level"><span>Target 2</span><strong>${plan['exit']['target2']}</strong></div>
+            <div class="qt-level"><span>Shares</span><strong>{plan['sizing']['shares']}</strong></div>
+            <div class="qt-level"><span>Position</span><strong>${plan['sizing']['position_value']}</strong></div>
+            <div class="qt-level"><span>Max Loss</span><strong>${plan['sizing']['estimated_max_loss']}</strong></div>
+            <div class="qt-level"><span>Risk / Share</span><strong>${plan['sizing']['risk_per_share']}</strong></div>
+          </div>
+          <p class="qt-card-copy">{plan['entry']['trigger']}</p>
+          <p class="qt-card-copy">{plan['invalidation']}</p>
+          <div class="qt-chip-row">{evidence_html}{warning_html}</div>
+          <p class="qt-disclaimer">For informational purposes only. Not financial advice.</p>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
 
 
 def main():
-    st.title("Stock AI Agent")
-    st.caption("Short-term scanner, trade planner, risk manager, and AI trading assistant.")
-    st.info("For research and paper-trading support only. This is not financial advice.")
+    apply_brand_theme()
 
     with st.sidebar:
-        st.header("Risk Settings")
+        st.markdown(logo_svg(), unsafe_allow_html=True)
+        st.header("QuanTrade AI Agent")
+        st.caption("Smarter signals. Calmer trading.")
+        st.divider()
+        st.subheader("Risk Settings")
         account_size = st.number_input("Account size", min_value=1000.0, value=10000.0, step=500.0)
         risk_percent = st.number_input("Risk per trade (%)", min_value=0.1, max_value=5.0, value=1.0, step=0.1)
         max_position_percent = st.number_input("Max position size (%)", min_value=1.0, max_value=100.0, value=25.0, step=1.0)
         st.divider()
-        st.caption("Deployment mode: mock market data")
-        st.caption("Add live data next: Alpaca or Polygon")
+        st.caption("Analyze before you trade.")
+        st.caption("Signals are informational, not financial advice.")
 
     risk_profile = RiskProfile(
         account_size=account_size,
@@ -485,19 +1000,26 @@ def main():
     watch_only = sum(1 for plan in plans if plan["decision"] == "Watch only")
     average_score = round(sum(plan["score"] for plan in plans) / len(plans), 1)
 
-    c1, c2, c3, c4 = st.columns(4)
-    c1.metric("Scanned", len(MOCK_MARKET_DATA))
-    c2.metric("Trade Ideas", trade_candidates)
-    c3.metric("Watchlist", watch_only)
-    c4.metric("Avg Score", average_score)
+    render_onboarding()
 
     st.caption(
         f"Market regime: {market_regime['bias']} · Volatility: {market_regime['volatility']} · "
         f"Updated: {datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M UTC')}"
     )
 
-    for plan in plans:
-        render_plan(plan)
+    dashboard_tab, signals_tab, assistant_tab = st.tabs(["Dashboard", "Signals", "AI Assistant"])
+
+    with dashboard_tab:
+        render_dashboard(plans, market_regime, average_score, trade_candidates, watch_only)
+
+    with signals_tab:
+        st.markdown("### Top Opportunities")
+        st.caption("Risk-aware trading support. Understand the signal before the trade.")
+        for plan in plans:
+            render_plan(plan)
+
+    with assistant_tab:
+        render_assistant_panel()
 
 
 if __name__ == "__main__":
