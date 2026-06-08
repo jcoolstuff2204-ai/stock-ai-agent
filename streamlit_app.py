@@ -814,18 +814,63 @@ def score_business_quality(fundamentals):
     }
 
 
-def opportunity_score(trade_score, quality_score):
-    return clamp_score(trade_score * 0.62 + quality_score * 0.38)
+HORIZON_CONFIGS = {
+    "Day Trade": {
+        "label": "Intraday / same-day",
+        "holding_period": "Minutes to one session",
+        "score_weights": {"trade": 0.82, "quality": 0.18},
+        "min_trade_signal": 72,
+        "min_business_quality": 40,
+        "risk_multiplier": 0.45,
+        "target_r_multiple": 1.2,
+        "stop_atr_multiplier": 0.45,
+        "prefer": ["liquidity", "momentum", "vwap"],
+    },
+    "Swing Trade": {
+        "label": "Multi-day / multi-week",
+        "holding_period": "5 to 20 trading days",
+        "score_weights": {"trade": 0.62, "quality": 0.38},
+        "min_trade_signal": 62,
+        "min_business_quality": 55,
+        "risk_multiplier": 1.0,
+        "target_r_multiple": 1.8,
+        "stop_atr_multiplier": 0.70,
+        "prefer": ["momentum", "support/resistance", "business quality"],
+    },
+    "Long-Term Invest": {
+        "label": "Multi-quarter investing",
+        "holding_period": "3 to 12+ months",
+        "score_weights": {"trade": 0.28, "quality": 0.72},
+        "min_trade_signal": 45,
+        "min_business_quality": 72,
+        "risk_multiplier": 1.4,
+        "target_r_multiple": 2.8,
+        "stop_atr_multiplier": 1.20,
+        "prefer": ["business quality", "cash flow", "valuation"],
+    },
+}
 
 
-def interpret_screen_prompt(prompt, playbook):
-    text = f"{prompt} {playbook}".lower()
+def horizon_config(horizon):
+    return HORIZON_CONFIGS.get(horizon, HORIZON_CONFIGS["Swing Trade"])
+
+
+def opportunity_score(trade_score, quality_score, horizon="Swing Trade"):
+    weights = horizon_config(horizon)["score_weights"]
+    return clamp_score(trade_score * weights["trade"] + quality_score * weights["quality"])
+
+
+def interpret_screen_prompt(prompt, horizon):
+    text = f"{prompt} {horizon}".lower()
+    config = horizon_config(horizon)
     settings = {
-        "min_trade_signal": 55,
-        "min_business_quality": 50,
-        "prefer": [],
+        "horizon": horizon,
+        "holding_period": config["holding_period"],
+        "min_trade_signal": config["min_trade_signal"],
+        "min_business_quality": config["min_business_quality"],
+        "prefer": list(config["prefer"]),
         "avoid": [],
-        "timeframe": "swing",
+        "timeframe": config["label"],
         "strict_confirmation": False,
     }
     if any(word in text for word in ["strong business", "quality", "cash flow", "fundamental", "profitable"]):
@@ -845,6 +890,12 @@ def interpret_screen_prompt(prompt, playbook):
         settings["min_business_quality"] = 70
         settings["avoid"].append("high volatility")
         settings["strict_confirmation"] = True
+    if horizon == "Day Trade":
+        settings["strict_confirmation"] = True
+        settings["avoid"].append("low liquidity")
+    if horizon == "Long-Term Invest":
+        settings["strict_confirmation"] = False
+        settings["avoid"].append("weak fundamentals")
     if any(word in text for word in ["crypto", "bitcoin", "ethereum", "etf"]):
         settings["prefer"].append("cross asset")
     return settings
@@ -874,6 +925,16 @@ def playbook_adjustment(plan, settings):
     if "high volatility" in settings["avoid"]:
         atr_percent = (plan["atr"] / max(plan["price"], 0.01)) * 100
         adjustment -= 10 if atr_percent > 6 else 0
+    if "low liquidity" in settings["avoid"]:
+        adjustment -= 12 if plan["average_volume"] < 10_000_000 else 0
+    if "weak fundamentals" in settings["avoid"]:
+        adjustment -= 15 if quality["quality_score"] < 65 else 0
+    if settings["horizon"] == "Day Trade":
+        adjustment += 8 if factors["Liquidity"] >= 76 and plan["relative_volume"] >= 1.1 else -6
+        adjustment -= 8 if plan["sizing"]["risk_per_share"] <= 0 else 0
+    if settings["horizon"] == "Long-Term Invest":
+        adjustment += 10 if quality["quality_score"] >= 78 else -8
+        adjustment += 5 if safe_number(fundamentals.get("fcf_margin")) >= 10 else -4
     if settings["strict_confirmation"] and plan["decision"] not in ["BUY SETUP", "WAIT FOR TRIGGER"]:
         adjustment -= 10
     return adjustment
@@ -935,8 +996,9 @@ def score_factors(quote, regime):
     }
 
 
-def position_size(entry, stop, risk_profile):
+def position_size(entry, stop, risk_profile, horizon="Swing Trade"):
     risk_budget = risk_profile.account_size * risk_profile.risk_per_trade_percent / 100
+    risk_budget *= horizon_config(horizon)["risk_multiplier"]
     risk_per_share = max(entry - stop, 0.01)
     shares_by_risk = int(risk_budget // risk_per_share)
     max_position_value = risk_profile.account_size * risk_profile.max_position_percent / 100
@@ -951,17 +1013,18 @@ def position_size(entry, stop, risk_profile):
     }
 
 
-def build_trade_plan(quote, fundamentals, regime, risk_profile):
+def build_trade_plan(quote, fundamentals, regime, risk_profile, horizon="Swing Trade"):
+    config = horizon_config(horizon)
     score = score_trade(quote, regime)
     factors = score_factors(quote, regime)
     quality = score_business_quality(fundamentals)
-    total_score = opportunity_score(score, quality["quality_score"])
+    total_score = opportunity_score(score, quality["quality_score"], horizon)
     entry = money(max(quote["price"], quote["resistance"] + 0.03)) if quote["price"] > quote["sma20"] else quote["price"]
-    stop = money(min(quote["support"], entry - quote["atr"] * 0.7))
+    stop = money(min(quote["support"], entry - quote["atr"] * config["stop_atr_multiplier"]))
     risk = entry - stop
-    target1 = money(entry + risk * 1.8)
-    target2 = money(entry + risk * 2.8)
-    sizing = position_size(entry, stop, risk_profile)
+    target1 = money(entry + risk * config["target_r_multiple"])
+    target2 = money(entry + risk * (config["target_r_multiple"] + 1.0))
+    sizing = position_size(entry, stop, risk_profile, horizon)
     decision = trade_decision(score, quote)
     setup = "Breakout continuation" if quote["price"] >= quote["resistance"] * 0.985 else "Trend pullback" if quote["price"] > quote["sma20"] else "Needs confirmation"
 
@@ -972,6 +1035,8 @@ def build_trade_plan(quote, fundamentals, regime, risk_profile):
         "grade": trade_grade(score),
         "decision": decision,
         "rating": quan_rating(score, decision),
+        "horizon": horizon,
+        "holding_period": config["holding_period"],
         "business_quality": quality,
         "fundamentals": fundamentals,
         "factor_scores": factors,
@@ -998,14 +1063,14 @@ def action_note(decision, quote):
     return "Avoid new buying. If already holding, review whether the position still fits your plan."
 
 
-def scan_trades(tickers, risk_profile, use_live_data, max_results, screen_prompt="", playbook="Swing trade"):
+def scan_trades(tickers, risk_profile, use_live_data, max_results, screen_prompt="", horizon="Swing Trade"):
     regime = market_regime(use_live_data)
     plans = []
     for symbol in tickers:
         quote = get_quote(symbol, use_live_data)
         fundamentals = get_fundamentals(symbol, use_live_data)
-        plans.append(build_trade_plan(quote, fundamentals, regime, risk_profile))
-    plans = apply_workflow_scoring(plans, screen_prompt, playbook)
+        plans.append(build_trade_plan(quote, fundamentals, regime, risk_profile, horizon))
+    plans = apply_workflow_scoring(plans, screen_prompt, horizon)
     return regime, plans[:max_results]
 
 
@@ -1122,6 +1187,7 @@ def render_ai_showcase(plans):
             business quality is {quality['quality_grade']} ({quality['quality_score']}/100). QuanTrade says
             <strong>{leader['decision']}</strong>: only consider action near ${leader['entry']} with risk controlled near ${leader['stop']}.
           </div>
+          <span class="qt-pill qt-pill-watch">{leader.get('horizon', 'Swing Trade')}</span>
           <span class="qt-pill qt-pill-buy">Opportunity {leader['opportunity_score']}</span>
           <span class="qt-pill qt-pill-watch">Business {quality['quality_grade']}</span>
           <span class="qt-pill qt-pill-watch">Target ${leader['target1']}</span>
@@ -1185,6 +1251,7 @@ def render_opportunity_queue(plans):
                   <div class="qt-card-symbol">{plan['symbol']}</div>
                   <div class="qt-muted">{plan['name']}</div>
                   <div class="qt-card-score">{plan['opportunity_score']}</div>
+                  <span class="qt-pill qt-pill-watch">{plan.get('horizon', 'Swing Trade')}</span>
                   <span class="qt-pill {pill_class}">{plan['decision']}</span>
                   <div class="qt-muted">Entry ${plan['entry']} · Stop ${plan['stop']}</div>
                   <div class="qt-muted">Business {plan['business_quality']['quality_grade']} · {plan['rating']}</div>
@@ -1446,14 +1513,30 @@ def render_smart_signals(plans):
 
 
 def action_brief(plan, regime, risk_profile):
-    if plan["decision"] == "BUY SETUP":
-        action = f"Buy only if {plan['symbol']} confirms above ${plan['entry']}."
-    elif plan["decision"] == "WAIT FOR TRIGGER":
-        action = f"Wait for {plan['symbol']} to reclaim or break above ${plan['entry']} with volume."
-    elif plan["decision"] == "HOLD / WATCH":
-        action = f"Watch {plan['symbol']}; do not open a fresh trade yet."
+    horizon = plan.get("horizon", "Swing Trade")
+    if horizon == "Long-Term Invest":
+        if plan["business_quality"]["quality_score"] >= 72 and plan["decision"] != "SELL / AVOID":
+            action = f"Research {plan['symbol']} for staged accumulation; do not chase without valuation and market confirmation."
+        elif plan["decision"] == "SELL / AVOID":
+            action = f"Do not add {plan['symbol']} to the long-term portfolio now."
+        else:
+            action = f"Keep {plan['symbol']} on the long-term watchlist until quality or price improves."
+    elif horizon == "Day Trade":
+        if plan["decision"] == "BUY SETUP":
+            action = f"Intraday only: consider {plan['symbol']} above ${plan['entry']} if volume confirms and VWAP holds."
+        elif plan["decision"] == "WAIT FOR TRIGGER":
+            action = f"Wait for {plan['symbol']} to break above ${plan['entry']} with strong relative volume."
+        else:
+            action = f"No day trade in {plan['symbol']} unless the chart resets and confirms."
     else:
-        action = f"Avoid new buying in {plan['symbol']} for now."
+        if plan["decision"] == "BUY SETUP":
+            action = f"Buy only if {plan['symbol']} confirms above ${plan['entry']}."
+        elif plan["decision"] == "WAIT FOR TRIGGER":
+            action = f"Wait for {plan['symbol']} to reclaim or break above ${plan['entry']} with volume."
+        elif plan["decision"] == "HOLD / WATCH":
+            action = f"Watch {plan['symbol']}; do not open a fresh trade yet."
+        else:
+            action = f"Avoid new buying in {plan['symbol']} for now."
 
     blockers = []
     if not plan.get("screen_match", True):
@@ -1470,6 +1553,7 @@ def action_brief(plan, regime, risk_profile):
         blockers.append("Technical risk score is low.")
 
     next_steps = [
+        f"Horizon: {horizon} ({plan.get('holding_period', 'multi-day')}).",
         action,
         f"Risk size: {plan['sizing']['shares']} shares, max loss about ${plan['sizing']['max_loss']}.",
         f"Invalidation: {plan['invalidation']}",
@@ -1492,7 +1576,9 @@ def render_screen_logic(plan):
     c1, c2, c3 = st.columns(3)
     c1.metric("Workflow Score", f"{plan.get('workflow_score', plan['opportunity_score'])}/100")
     c2.metric("Screen Match", "Yes" if plan.get("screen_match", True) else "No")
-    c3.metric("Strict Confirmation", "Yes" if settings.get("strict_confirmation") else "No")
+    c3.metric("Horizon", settings.get("horizon", plan.get("horizon", "Swing Trade")))
+    st.write(f"Holding period: {settings.get('holding_period', plan.get('holding_period', 'multi-day'))}")
+    st.write(f"Strict confirmation: {'Yes' if settings.get('strict_confirmation') else 'No'}")
     st.write(f"Minimum trade signal: {settings.get('min_trade_signal', 55)}")
     st.write(f"Minimum business quality: {settings.get('min_business_quality', 50)}")
     prefer = settings.get("prefer") or ["balanced ranking"]
@@ -1569,10 +1655,10 @@ def render_portfolio_context(portfolio, plans):
         st.warning(f"Concentration check: {main_theme[1]} tracked names are in {main_theme[0]}. Avoid stacking correlated trades.")
 
 
-def render_playbook_workspace(screen_prompt, strategy_mode, plans, futures):
+def render_playbook_workspace(screen_prompt, horizon, strategy_mode, plans, futures):
     st.subheader("Market Playbook")
     st.caption("A reusable workflow brief based on the current screen and ranking logic.")
-    settings = interpret_screen_prompt(screen_prompt, strategy_mode)
+    settings = interpret_screen_prompt(f"{screen_prompt}. Playbook: {strategy_mode}.", horizon)
     matched = [plan for plan in plans if plan.get("screen_match", True)]
     buy = [plan for plan in matched if plan["decision"] == "BUY SETUP"]
     watch = [plan for plan in matched if plan["decision"] in ["WAIT FOR TRIGGER", "HOLD / WATCH"]]
@@ -1583,7 +1669,8 @@ def render_playbook_workspace(screen_prompt, strategy_mode, plans, futures):
           <div class="qt-section-kicker">Saved Screen</div>
           <div class="qt-ai-question">{screen_prompt}</div>
           <div class="qt-ai-summary">
-            Playbook: {strategy_mode}. Minimum trade signal {settings['min_trade_signal']};
+            Horizon: {horizon}. Playbook: {strategy_mode}. Holding period: {settings['holding_period']}.
+            Minimum trade signal {settings['min_trade_signal']};
             minimum business quality {settings['min_business_quality']}. Preferred factors:
             {', '.join(settings['prefer'] or ['balanced ranking'])}.
           </div>
@@ -1797,12 +1884,13 @@ def main():
         render_logo()
         st.divider()
         st.subheader("AI Screening")
+        horizon = st.selectbox("Horizon", ["Day Trade", "Swing Trade", "Long-Term Invest"], index=1)
         screen_prompt = st.text_area(
             "Plain-English screen",
-            value="Find risk-aware swing trade candidates with strong business quality and clear entry levels.",
+            value="Find risk-aware candidates with strong business quality and clear entry levels.",
             height=86,
         )
-        strategy_mode = st.selectbox("Playbook", ["Swing trade", "Breakout", "Pullback", "Small-cap discovery", "Defensive watchlist"])
+        strategy_mode = st.selectbox("Playbook", ["Balanced", "Breakout", "Pullback", "Small-cap discovery", "Defensive watchlist"])
         universe_index = 1 if "Auto: Broad opportunity scan" in DEFAULT_UNIVERSES else 0
         universe_name = st.selectbox("Market universe", list(DEFAULT_UNIVERSES.keys()), index=universe_index)
         st.caption(f"{len(DEFAULT_UNIVERSES[universe_name])} symbols will be ranked by trade signal and business quality.")
@@ -1854,7 +1942,8 @@ def main():
         tickers = clean_tickers(custom) if use_custom_tickers else DEFAULT_UNIVERSES[universe_name]
         risk_profile = RiskProfile(account_size, risk_percent, max_position_percent, max_daily_loss_percent)
         with st.spinner("Scanning market, scoring setups, and building risk-aware plans..."):
-            regime, plans = scan_trades(tickers, risk_profile, use_live_data, max_results, screen_prompt, strategy_mode)
+            combined_prompt = f"{screen_prompt}. Playbook: {strategy_mode}."
+            regime, plans = scan_trades(tickers, risk_profile, use_live_data, max_results, combined_prompt, horizon)
             futures = scan_future(future_risk, future_sectors, future_results)
         st.session_state["regime"] = regime
         st.session_state["plans"] = plans
@@ -1863,6 +1952,7 @@ def main():
         st.session_state["last_scan"] = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC")
         st.session_state["scan_universe"] = "Custom tickers" if use_custom_tickers else universe_name
         st.session_state["strategy_mode"] = strategy_mode
+        st.session_state["horizon"] = horizon
         st.session_state["screen_prompt"] = screen_prompt
         st.session_state["portfolio"] = parse_portfolio(portfolio_text)
         st.session_state["scanned_count"] = len(tickers)
@@ -1880,7 +1970,8 @@ def main():
 
     st.caption(
         f"Scanned: {st.session_state.get('scan_universe', universe_name)} · "
-        f"Strategy: {st.session_state.get('strategy_mode', strategy_mode)} · "
+        f"Horizon: {st.session_state.get('horizon', horizon)} · "
+        f"Playbook: {st.session_state.get('strategy_mode', strategy_mode)} · "
         f"Screen: {st.session_state.get('screen_prompt', screen_prompt)} · "
         f"{st.session_state.get('scanned_count', len(raw_plans))} symbols · Average Opportunity Score: {avg_score}/100 · "
         f"Last scan: {st.session_state['last_scan']} · Data mode: {regime['source']}"
@@ -1930,7 +2021,13 @@ def main():
         render_smart_signals(plans)
 
     with discover_tab:
-        render_playbook_workspace(st.session_state.get("screen_prompt", screen_prompt), st.session_state.get("strategy_mode", strategy_mode), plans, futures)
+        render_playbook_workspace(
+            st.session_state.get("screen_prompt", screen_prompt),
+            st.session_state.get("horizon", horizon),
+            st.session_state.get("strategy_mode", strategy_mode),
+            plans,
+            futures,
+        )
 
     with assistant_tab:
         st.subheader("Ask QuanTrade Intelligence")
@@ -1946,6 +2043,7 @@ def main():
                 "participation": regime["participation"],
                 "rule": regime["rule"],
                 "screen_prompt": st.session_state.get("screen_prompt", screen_prompt),
+                "horizon": st.session_state.get("horizon", horizon),
                 "playbook": st.session_state.get("strategy_mode", strategy_mode),
                 "portfolio": portfolio,
                 "signal_inbox": signal_inbox,
