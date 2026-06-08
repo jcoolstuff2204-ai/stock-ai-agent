@@ -212,6 +212,21 @@ SAMPLE_QUOTES = {
 }
 
 
+SAMPLE_FUNDAMENTALS = {
+    "NVDA": {"revenue_growth": 126.0, "eps_growth": 145.0, "gross_margin": 75.0, "operating_margin": 61.0, "net_margin": 53.0, "fcf_margin": 43.0, "debt_to_equity": 0.2, "current_ratio": 4.3, "roe": 91.0, "pe": 43.0, "ps": 24.0, "pb": 37.0},
+    "AMD": {"revenue_growth": 13.7, "eps_growth": 24.0, "gross_margin": 50.0, "operating_margin": 6.0, "net_margin": 5.0, "fcf_margin": 8.0, "debt_to_equity": 0.05, "current_ratio": 2.8, "roe": 3.0, "pe": 49.0, "ps": 11.0, "pb": 4.8},
+    "AAPL": {"revenue_growth": 2.0, "eps_growth": 7.0, "gross_margin": 46.0, "operating_margin": 31.0, "net_margin": 26.0, "fcf_margin": 24.0, "debt_to_equity": 1.7, "current_ratio": 0.9, "roe": 154.0, "pe": 30.0, "ps": 8.0, "pb": 47.0},
+    "MSFT": {"revenue_growth": 15.0, "eps_growth": 20.0, "gross_margin": 69.0, "operating_margin": 45.0, "net_margin": 36.0, "fcf_margin": 31.0, "debt_to_equity": 0.3, "current_ratio": 1.3, "roe": 37.0, "pe": 34.0, "ps": 12.0, "pb": 11.0},
+    "META": {"revenue_growth": 22.0, "eps_growth": 73.0, "gross_margin": 81.0, "operating_margin": 38.0, "net_margin": 35.0, "fcf_margin": 33.0, "debt_to_equity": 0.1, "current_ratio": 2.7, "roe": 34.0, "pe": 25.0, "ps": 9.0, "pb": 8.0},
+    "AMZN": {"revenue_growth": 11.0, "eps_growth": 82.0, "gross_margin": 49.0, "operating_margin": 10.0, "net_margin": 8.0, "fcf_margin": 6.0, "debt_to_equity": 0.5, "current_ratio": 1.1, "roe": 19.0, "pe": 33.0, "ps": 3.2, "pb": 8.0},
+    "GOOGL": {"revenue_growth": 14.0, "eps_growth": 39.0, "gross_margin": 59.0, "operating_margin": 32.0, "net_margin": 27.0, "fcf_margin": 22.0, "debt_to_equity": 0.1, "current_ratio": 2.0, "roe": 29.0, "pe": 23.0, "ps": 6.4, "pb": 6.7},
+    "TSLA": {"revenue_growth": 1.0, "eps_growth": -18.0, "gross_margin": 18.0, "operating_margin": 8.0, "net_margin": 7.0, "fcf_margin": 3.0, "debt_to_equity": 0.2, "current_ratio": 1.7, "roe": 12.0, "pe": 62.0, "ps": 7.1, "pb": 9.0},
+    "PLTR": {"revenue_growth": 21.0, "eps_growth": 45.0, "gross_margin": 81.0, "operating_margin": 16.0, "net_margin": 16.0, "fcf_margin": 34.0, "debt_to_equity": 0.05, "current_ratio": 5.5, "roe": 12.0, "pe": 85.0, "ps": 25.0, "pb": 16.0},
+    "SPY": {"revenue_growth": 0.0, "eps_growth": 0.0, "gross_margin": 0.0, "operating_margin": 0.0, "net_margin": 0.0, "fcf_margin": 0.0, "debt_to_equity": 0.0, "current_ratio": 0.0, "roe": 0.0, "pe": 22.0, "ps": 2.8, "pb": 4.5, "is_fund": True},
+    "QQQ": {"revenue_growth": 0.0, "eps_growth": 0.0, "gross_margin": 0.0, "operating_margin": 0.0, "net_margin": 0.0, "fcf_margin": 0.0, "debt_to_equity": 0.0, "current_ratio": 0.0, "roe": 0.0, "pe": 31.0, "ps": 5.6, "pb": 8.1, "is_fund": True},
+}
+
+
 FUTURE_COMPANIES = [
     ("RXRX", "Recursion Pharmaceuticals", "AI biotech", "Small cap", 42, 74, 24, "medium", 92, 78, 72, 76, 84, "AI drug-discovery pipeline and pharma partnerships"),
     ("IONQ", "IonQ", "Quantum computing", "Small cap", 78, 58, 30, "low", 88, 74, 64, 88, 90, "Enterprise quantum adoption and government demand"),
@@ -270,6 +285,142 @@ def fallback_quote(symbol):
         "sma50": sma50,
         "source": "sample fallback",
     }
+
+
+def fallback_fundamentals(symbol):
+    base = SAMPLE_FUNDAMENTALS.get(
+        symbol,
+        {
+            "revenue_growth": 6.0,
+            "eps_growth": 4.0,
+            "gross_margin": 42.0,
+            "operating_margin": 12.0,
+            "net_margin": 8.0,
+            "fcf_margin": 7.0,
+            "debt_to_equity": 0.7,
+            "current_ratio": 1.4,
+            "roe": 11.0,
+            "pe": 28.0,
+            "ps": 4.0,
+            "pb": 5.0,
+        },
+    )
+    return {
+        **base,
+        "fundamental_source": "sample fallback",
+        "financial_notes": "Live company financials were unavailable, so QuanTrade used conservative fallback estimates.",
+    }
+
+
+def safe_number(value, default=0.0):
+    try:
+        if value is None:
+            return default
+        if pd is not None and pd.isna(value):
+            return default
+        return float(value)
+    except Exception:
+        return default
+
+
+def latest_statement_value(frame, names):
+    if pd is None or frame is None or getattr(frame, "empty", True):
+        return None
+    for name in names:
+        if name in frame.index:
+            row = frame.loc[name].dropna()
+            if not row.empty:
+                return safe_number(row.iloc[0], None)
+    return None
+
+
+def statement_growth(frame, names):
+    if pd is None or frame is None or getattr(frame, "empty", True):
+        return None
+    for name in names:
+        if name in frame.index:
+            row = frame.loc[name].dropna()
+            if len(row) >= 2:
+                current = safe_number(row.iloc[0], None)
+                previous = safe_number(row.iloc[1], None)
+                if current is not None and previous not in [None, 0]:
+                    return ((current - previous) / abs(previous)) * 100
+    return None
+
+
+@st.cache_data(ttl=3600, show_spinner=False)
+def fetch_live_fundamentals(symbol):
+    if yf is None or pd is None:
+        return None
+    try:
+        ticker = yf.Ticker(symbol)
+        info = {}
+        try:
+            info = ticker.info or {}
+        except Exception:
+            info = {}
+
+        income = getattr(ticker, "financials", None)
+        balance = getattr(ticker, "balance_sheet", None)
+        cashflow = getattr(ticker, "cashflow", None)
+
+        revenue = latest_statement_value(income, ["Total Revenue", "Operating Revenue"])
+        gross_profit = latest_statement_value(income, ["Gross Profit"])
+        operating_income = latest_statement_value(income, ["Operating Income", "Operating Income Loss"])
+        net_income = latest_statement_value(income, ["Net Income", "Net Income Common Stockholders"])
+        operating_cash = latest_statement_value(cashflow, ["Operating Cash Flow", "Cash Flow From Continuing Operating Activities"])
+        capex = latest_statement_value(cashflow, ["Capital Expenditure", "Capital Expenditures"])
+        total_debt = latest_statement_value(balance, ["Total Debt", "Long Term Debt"])
+        equity = latest_statement_value(balance, ["Stockholders Equity", "Total Equity Gross Minority Interest"])
+        current_assets = latest_statement_value(balance, ["Current Assets", "Total Current Assets"])
+        current_liabilities = latest_statement_value(balance, ["Current Liabilities", "Total Current Liabilities Net Minority Interest"])
+
+        free_cash_flow = safe_number(operating_cash) + safe_number(capex)
+        revenue_growth = info.get("revenueGrowth")
+        earnings_growth = info.get("earningsGrowth")
+        revenue_growth = safe_number(revenue_growth, None)
+        earnings_growth = safe_number(earnings_growth, None)
+
+        if revenue_growth is not None:
+            revenue_growth *= 100
+        else:
+            revenue_growth = statement_growth(income, ["Total Revenue", "Operating Revenue"])
+
+        if earnings_growth is not None:
+            earnings_growth *= 100
+        else:
+            earnings_growth = statement_growth(income, ["Net Income", "Net Income Common Stockholders"])
+
+        result = {
+            "revenue_growth": safe_number(revenue_growth, 0.0),
+            "eps_growth": safe_number(earnings_growth, 0.0),
+            "gross_margin": safe_number((gross_profit / revenue) * 100 if revenue else info.get("grossMargins", 0) * 100, 0.0),
+            "operating_margin": safe_number((operating_income / revenue) * 100 if revenue else info.get("operatingMargins", 0) * 100, 0.0),
+            "net_margin": safe_number((net_income / revenue) * 100 if revenue else info.get("profitMargins", 0) * 100, 0.0),
+            "fcf_margin": safe_number((free_cash_flow / revenue) * 100 if revenue else 0.0, 0.0),
+            "debt_to_equity": safe_number((total_debt / equity) if equity else info.get("debtToEquity", 0) / 100, 0.0),
+            "current_ratio": safe_number((current_assets / current_liabilities) if current_liabilities else info.get("currentRatio", 0), 0.0),
+            "roe": safe_number(info.get("returnOnEquity", 0) * 100, 0.0),
+            "pe": safe_number(info.get("trailingPE") or info.get("forwardPE"), 0.0),
+            "ps": safe_number(info.get("priceToSalesTrailing12Months"), 0.0),
+            "pb": safe_number(info.get("priceToBook"), 0.0),
+            "is_fund": bool(info.get("quoteType") in ["ETF", "MUTUALFUND"]),
+            "fundamental_source": "live yfinance fundamentals",
+            "financial_notes": "Financial metrics are derived from Yahoo Finance statements and profile data when available.",
+        }
+
+        has_useful_data = any(abs(result[key]) > 0 for key in ["revenue_growth", "gross_margin", "net_margin", "roe", "pe"])
+        return result if has_useful_data else None
+    except Exception:
+        return None
+
+
+def get_fundamentals(symbol, use_live_data):
+    if use_live_data:
+        fundamentals = fetch_live_fundamentals(symbol)
+        if fundamentals:
+            return fundamentals
+    return fallback_fundamentals(symbol)
 
 
 @st.cache_data(ttl=900, show_spinner=False)
@@ -429,6 +580,89 @@ def clamp_score(value):
     return max(0, min(100, round(value)))
 
 
+def score_metric(value, good, excellent, reverse=False):
+    value = safe_number(value)
+    if reverse:
+        if value <= excellent:
+            return 95
+        if value <= good:
+            return 80
+        return clamp_score(80 - (value - good) * 4)
+    if value >= excellent:
+        return 95
+    if value >= good:
+        return 80
+    return clamp_score(45 + (value / max(good, 1)) * 35)
+
+
+def score_business_quality(fundamentals):
+    if fundamentals.get("is_fund"):
+        valuation = score_metric(fundamentals.get("pe"), 30, 18, reverse=True)
+        return {
+            "quality_score": 70,
+            "quality_grade": "B",
+            "quality_label": "ETF / basket",
+            "financial_scores": {
+                "Growth": 65,
+                "Profitability": 70,
+                "Cash Flow": 70,
+                "Balance Sheet": 70,
+                "Valuation": valuation,
+            },
+            "financial_grades": {
+                "Growth": "B-",
+                "Profitability": "B",
+                "Cash Flow": "B",
+                "Balance Sheet": "B",
+                "Valuation": factor_grade(valuation),
+            },
+        }
+
+    growth = clamp_score(
+        score_metric(fundamentals.get("revenue_growth"), 10, 25) * 0.55
+        + score_metric(fundamentals.get("eps_growth"), 8, 25) * 0.45
+    )
+    profitability = clamp_score(
+        score_metric(fundamentals.get("gross_margin"), 40, 65) * 0.25
+        + score_metric(fundamentals.get("operating_margin"), 12, 28) * 0.25
+        + score_metric(fundamentals.get("net_margin"), 8, 22) * 0.25
+        + score_metric(fundamentals.get("roe"), 12, 30) * 0.25
+    )
+    cash_flow = score_metric(fundamentals.get("fcf_margin"), 6, 18)
+    balance_sheet = clamp_score(
+        score_metric(fundamentals.get("current_ratio"), 1.2, 2.0) * 0.45
+        + score_metric(fundamentals.get("debt_to_equity"), 1.0, 0.25, reverse=True) * 0.55
+    )
+    valuation = clamp_score(
+        score_metric(fundamentals.get("pe"), 35, 18, reverse=True) * 0.45
+        + score_metric(fundamentals.get("ps"), 10, 3, reverse=True) * 0.35
+        + score_metric(fundamentals.get("pb"), 8, 2.5, reverse=True) * 0.20
+    )
+    quality_score = clamp_score(
+        growth * 0.24 + profitability * 0.26 + cash_flow * 0.20 + balance_sheet * 0.18 + valuation * 0.12
+    )
+    label = "High quality" if quality_score >= 82 else "Solid" if quality_score >= 70 else "Speculative" if quality_score >= 55 else "Weak"
+
+    scores = {
+        "Growth": growth,
+        "Profitability": profitability,
+        "Cash Flow": cash_flow,
+        "Balance Sheet": balance_sheet,
+        "Valuation": valuation,
+    }
+    return {
+        "quality_score": quality_score,
+        "quality_grade": factor_grade(quality_score),
+        "quality_label": label,
+        "financial_scores": scores,
+        "financial_grades": {name: factor_grade(value) for name, value in scores.items()},
+    }
+
+
+def opportunity_score(trade_score, quality_score):
+    return clamp_score(trade_score * 0.62 + quality_score * 0.38)
+
+
 def score_factors(quote, regime):
     atr_percent = quote["atr"] / max(quote["price"], 0.01)
     distance_to_resistance = (quote["resistance"] - quote["price"]) / max(quote["price"], 0.01)
@@ -485,9 +719,11 @@ def position_size(entry, stop, risk_profile):
     }
 
 
-def build_trade_plan(quote, regime, risk_profile):
+def build_trade_plan(quote, fundamentals, regime, risk_profile):
     score = score_trade(quote, regime)
     factors = score_factors(quote, regime)
+    quality = score_business_quality(fundamentals)
+    total_score = opportunity_score(score, quality["quality_score"])
     entry = money(max(quote["price"], quote["resistance"] + 0.03)) if quote["price"] > quote["sma20"] else quote["price"]
     stop = money(min(quote["support"], entry - quote["atr"] * 0.7))
     risk = entry - stop
@@ -500,9 +736,12 @@ def build_trade_plan(quote, regime, risk_profile):
     return {
         **quote,
         "score": score,
+        "opportunity_score": total_score,
         "grade": trade_grade(score),
         "decision": decision,
         "rating": quan_rating(score, decision),
+        "business_quality": quality,
+        "fundamentals": fundamentals,
         "factor_scores": factors,
         "factor_grades": {name: factor_grade(value) for name, value in factors.items()},
         "action_note": action_note(decision, quote),
@@ -532,8 +771,9 @@ def scan_trades(tickers, risk_profile, use_live_data, max_results):
     plans = []
     for symbol in tickers:
         quote = get_quote(symbol, use_live_data)
-        plans.append(build_trade_plan(quote, regime, risk_profile))
-    plans.sort(key=lambda item: item["score"], reverse=True)
+        fundamentals = get_fundamentals(symbol, use_live_data)
+        plans.append(build_trade_plan(quote, fundamentals, regime, risk_profile))
+    plans.sort(key=lambda item: item["opportunity_score"], reverse=True)
     return regime, plans[:max_results]
 
 
@@ -625,28 +865,28 @@ def render_screener_table(plans):
     rows = []
     for index, plan in enumerate(plans, start=1):
         factors = plan["factor_grades"]
+        quality = plan["business_quality"]
         rows.append(
             {
                 "Rank": index,
                 "Ticker": plan["symbol"],
+                "Company": plan["name"],
+                "Opportunity": plan["opportunity_score"],
                 "Rating": plan["rating"],
-                "QuanScore": plan["score"],
+                "Trade Signal": plan["score"],
+                "Business Quality": f"{quality['quality_grade']} ({quality['quality_score']})",
                 "Action": plan["decision"],
                 "Momentum": factors["Momentum"],
-                "Technical": factors["Technical"],
-                "Liquidity": factors["Liquidity"],
                 "Risk": factors["Risk"],
-                "Timing": factors["Timing"],
                 "Buy Above": f"${plan['entry']}",
                 "Stop": f"${plan['stop']}",
                 "Target 1": f"${plan['target1']}",
-                "Shares": plan["sizing"]["shares"],
-                "Max Loss": f"${plan['sizing']['max_loss']}",
+                "Why": " · ".join(plan_reasons(plan)),
             }
         )
 
     st.markdown('<div class="qt-section-kicker">Ranked Screener</div>', unsafe_allow_html=True)
-    st.subheader("Top Rated Stock Setups")
+    st.subheader("AI Stock Picker")
     st.markdown(
         '<div class="qt-screener-note">Start here: QuanTrade scans the universe for you, ranks the best setups, '
         "and separates buy candidates from wait and sell/avoid names.</div>",
@@ -758,7 +998,7 @@ def render_smart_signals(plans):
                 st.write(participation_label(plan))
                 st.caption(" · ".join(plan_reasons(plan)))
             with right:
-                st.metric("QuanScore", f"{plan['score']}/100")
+                st.metric("Opportunity", f"{plan['opportunity_score']}/100")
             c1, c2, c3 = st.columns(3)
             c1.metric("Trigger", f"${plan['entry']}")
             c2.metric("Stop", f"${plan['stop']}")
@@ -788,6 +1028,105 @@ def render_portfolio_guard(risk_profile, buy_plans):
     st.write("- Exit logic matters more than entry logic: respect invalidation levels.")
 
 
+def percent_text(value):
+    return f"{round(safe_number(value), 1)}%"
+
+
+def ratio_text(value):
+    return f"{round(safe_number(value), 2)}"
+
+
+def render_stock_detail(plan, regime):
+    quality = plan["business_quality"]
+    fundamentals = plan["fundamentals"]
+
+    st.markdown('<div class="qt-section-kicker">Stock Detail</div>', unsafe_allow_html=True)
+    left, right = st.columns([0.68, 0.32], vertical_alignment="center")
+    with left:
+        st.subheader(f"{plan['symbol']} · {plan['name']}")
+        st.write(f"Decision: **{plan['decision']}** · Rating: **{plan['rating']}**")
+        st.caption(f"{participation_label(plan)} · {plan['setup']} · {plan['regime_rule']}")
+    with right:
+        st.metric("Opportunity Score", f"{plan['opportunity_score']}/100")
+
+    detail_tabs = st.tabs(["Trade Plan", "Financials", "Signals", "Risk", "AI Explanation"])
+
+    with detail_tabs[0]:
+        c1, c2, c3, c4 = st.columns(4)
+        c1.metric("Buy Trigger", f"${plan['entry']}")
+        c2.metric("Stop", f"${plan['stop']}")
+        c3.metric("Target 1", f"${plan['target1']}")
+        c4.metric("Target 2", f"${plan['target2']}")
+        c1, c2, c3, c4 = st.columns(4)
+        c1.metric("Shares", plan["sizing"]["shares"])
+        c2.metric("Position", f"${plan['sizing']['position_value']}")
+        c3.metric("Max Loss", f"${plan['sizing']['max_loss']}")
+        c4.metric("Risk / Share", f"${plan['sizing']['risk_per_share']}")
+        st.write(plan["action_note"])
+        st.caption(plan["invalidation"])
+
+    with detail_tabs[1]:
+        st.subheader(f"Business Quality: {quality['quality_grade']} · {quality['quality_label']}")
+        c1, c2, c3, c4, c5 = st.columns(5)
+        grades = quality["financial_grades"]
+        c1.metric("Growth", grades["Growth"])
+        c2.metric("Profitability", grades["Profitability"])
+        c3.metric("Cash Flow", grades["Cash Flow"])
+        c4.metric("Balance Sheet", grades["Balance Sheet"])
+        c5.metric("Valuation", grades["Valuation"])
+
+        m1, m2, m3, m4 = st.columns(4)
+        m1.metric("Revenue Growth", percent_text(fundamentals["revenue_growth"]))
+        m2.metric("EPS / Earnings Growth", percent_text(fundamentals["eps_growth"]))
+        m3.metric("Gross Margin", percent_text(fundamentals["gross_margin"]))
+        m4.metric("Net Margin", percent_text(fundamentals["net_margin"]))
+        m1, m2, m3, m4 = st.columns(4)
+        m1.metric("FCF Margin", percent_text(fundamentals["fcf_margin"]))
+        m2.metric("Debt / Equity", ratio_text(fundamentals["debt_to_equity"]))
+        m3.metric("Current Ratio", ratio_text(fundamentals["current_ratio"]))
+        m4.metric("ROE", percent_text(fundamentals["roe"]))
+        m1, m2, m3 = st.columns(3)
+        m1.metric("P/E", ratio_text(fundamentals["pe"]))
+        m2.metric("P/S", ratio_text(fundamentals["ps"]))
+        m3.metric("P/B", ratio_text(fundamentals["pb"]))
+        st.caption(f"{fundamentals['financial_notes']} Source: {fundamentals['fundamental_source']}.")
+
+    with detail_tabs[2]:
+        c1, c2, c3, c4, c5 = st.columns(5)
+        grades = plan["factor_grades"]
+        c1.metric("Momentum", grades["Momentum"])
+        c2.metric("Technical", grades["Technical"])
+        c3.metric("Liquidity", grades["Liquidity"])
+        c4.metric("Risk", grades["Risk"])
+        c5.metric("Timing", grades["Timing"])
+        st.write("Signal reasons:")
+        for reason in plan_reasons(plan):
+            st.write(f"- {reason}")
+        st.caption(f"Market mode: {regime['participation'].title()} · {regime['rule']}")
+
+    with detail_tabs[3]:
+        atr_percent = (plan["atr"] / max(plan["price"], 0.01)) * 100
+        c1, c2, c3, c4 = st.columns(4)
+        c1.metric("ATR", f"${plan['atr']}")
+        c2.metric("ATR %", percent_text(atr_percent))
+        c3.metric("Relative Volume", ratio_text(plan["relative_volume"]))
+        c4.metric("Avg Volume", f"{int(plan['average_volume']):,}")
+        st.write("Risk controls:")
+        st.write("- Avoid chasing above the trigger if the move is already extended.")
+        st.write("- Do not increase size after a losing trade.")
+        st.write("- If price loses VWAP with heavy volume, the setup is invalid.")
+        st.write("- If market mode turns defensive, reduce or skip new exposure.")
+
+    with detail_tabs[4]:
+        st.write(
+            f"QuanTrade ranks {plan['symbol']} at {plan['opportunity_score']}/100 because the trade signal is "
+            f"{plan['score']}/100 and business quality is {quality['quality_score']}/100. "
+            f"The current decision is {plan['decision'].lower()}. "
+            f"The setup should only be acted on if price confirms near ${plan['entry']} and risk is controlled near ${plan['stop']}."
+        )
+        st.caption("This explanation is informational only. Verify data and make your own trading decision.")
+
+
 def render_plan(plan):
     is_buy = plan["decision"] == "BUY SETUP"
     is_sell = plan["decision"] == "SELL / AVOID"
@@ -796,7 +1135,10 @@ def render_plan(plan):
         with top_left:
             st.subheader(f"{plan['symbol']}")
             st.markdown(f"**{plan['rating']} · {plan['decision']}**")
-            st.caption(f"{plan['setup']} · QuanGrade {plan['grade']} · Data: {plan['source']}")
+            st.caption(
+                f"{plan['setup']} · Opportunity {plan['opportunity_score']}/100 · "
+                f"Business {plan['business_quality']['quality_grade']} · Data: {plan['source']}"
+            )
             if is_buy:
                 st.success(plan["action_note"])
             elif is_sell:
@@ -825,6 +1167,11 @@ def render_plan(plan):
         f3.metric("Liquidity", grades["Liquidity"])
         f4.metric("Risk", grades["Risk"])
         f5.metric("Timing", grades["Timing"])
+
+        q1, q2, q3 = st.columns(3)
+        q1.metric("Trade Signal", f"{plan['score']}/100")
+        q2.metric("Business Quality", f"{plan['business_quality']['quality_score']}/100")
+        q3.metric("Financial Grade", plan["business_quality"]["quality_grade"])
 
         if is_sell:
             st.write("Sell/Avoid logic: trend is weak, quality score is low, or liquidity/risk does not justify a fresh entry.")
@@ -914,11 +1261,11 @@ def main():
     futures = st.session_state["futures"]
     risk_profile = st.session_state["risk_profile"]
 
-    avg_score = round(sum(plan["score"] for plan in plans) / len(plans), 1) if plans else 0
+    avg_score = round(sum(plan["opportunity_score"] for plan in plans) / len(plans), 1) if plans else 0
 
     st.caption(
         f"Scanned: {st.session_state.get('scan_universe', universe_name)} · "
-        f"{st.session_state.get('scanned_count', len(raw_plans))} symbols · Average QuanScore: {avg_score}/100 · "
+        f"{st.session_state.get('scanned_count', len(raw_plans))} symbols · Average Opportunity Score: {avg_score}/100 · "
         f"Last scan: {st.session_state['last_scan']} · Data mode: {regime['source']}"
     )
 
@@ -932,6 +1279,15 @@ def main():
     buy_plans = [plan for plan in plans if plan["decision"] == "BUY SETUP"]
     wait_plans = [plan for plan in plans if plan["decision"] in ["WAIT FOR TRIGGER", "HOLD / WATCH"]]
     sell_plans = [plan for plan in plans if plan["decision"] == "SELL / AVOID"]
+
+    selected_symbol = st.selectbox(
+        "Open stock detail",
+        [plan["symbol"] for plan in plans],
+        index=0,
+        help="Review the full decision page for one stock.",
+    )
+    selected_plan = next(plan for plan in plans if plan["symbol"] == selected_symbol)
+    render_stock_detail(selected_plan, regime)
 
     st.subheader("Trade Plan Details")
     if buy_plans:
@@ -993,7 +1349,9 @@ def main():
                     {
                         "symbol": p["symbol"],
                         "rating": p["rating"],
-                        "score": p["score"],
+                        "opportunity_score": p["opportunity_score"],
+                        "trade_signal": p["score"],
+                        "business_quality": p["business_quality"]["quality_score"],
                         "factor_grades": p["factor_grades"],
                         "entry": p["entry"],
                         "stop": p["stop"],
@@ -1005,7 +1363,9 @@ def main():
                         "symbol": p["symbol"],
                         "rating": p["rating"],
                         "decision": p["decision"],
-                        "score": p["score"],
+                        "opportunity_score": p["opportunity_score"],
+                        "trade_signal": p["score"],
+                        "business_quality": p["business_quality"]["quality_score"],
                         "factor_grades": p["factor_grades"],
                     }
                     for p in wait_plans[:5]
@@ -1014,7 +1374,9 @@ def main():
                     {
                         "symbol": p["symbol"],
                         "rating": p["rating"],
-                        "score": p["score"],
+                        "opportunity_score": p["opportunity_score"],
+                        "trade_signal": p["score"],
+                        "business_quality": p["business_quality"]["quality_score"],
                         "factor_grades": p["factor_grades"],
                     }
                     for p in sell_plans[:5]
