@@ -3,7 +3,12 @@
 .streamlit/secrets.toml
 __pycache__/
 node_modules/
+backend/.venv/
+frontend/node_modules/
+dist/
+frontend/dist/
 .DS_Store
 logs/
 *.log
+*.sqlite3
 QuanTrade/

@@ -1,0 +1,2 @@
+"""QuanTrade FastAPI backend."""
+
