@@ -150,6 +150,83 @@ button[kind="primary"] *, .stButton > button * {
   font-weight: 850;
 }
 
+.qt-app-title {
+  color: var(--rh-ink);
+  font-size: 2.15rem;
+  line-height: 1.1;
+  font-weight: 900;
+  margin: 0.2rem 0 0.35rem;
+}
+
+.qt-muted {
+  color: var(--rh-muted);
+}
+
+.qt-brief {
+  background: #0B0F0E;
+  color: #FFFFFF;
+  border-radius: 22px;
+  padding: 1.35rem 1.45rem;
+  margin: 0.35rem 0 1.2rem;
+}
+
+.qt-brief h2, .qt-brief p, .qt-brief div {
+  color: #FFFFFF !important;
+}
+
+.qt-brief-sub {
+  color: #B9C3BE !important;
+  font-size: 1rem;
+  margin-top: 0.4rem;
+}
+
+.qt-pill {
+  display: inline-flex;
+  align-items: center;
+  border-radius: 999px;
+  padding: 0.28rem 0.7rem;
+  margin: 0.16rem 0.2rem 0.16rem 0;
+  font-size: 0.78rem;
+  font-weight: 850;
+}
+
+.qt-pill-buy {
+  background: #D1FAE5;
+  color: #065F46;
+}
+
+.qt-pill-watch {
+  background: #FEF3C7;
+  color: #92400E;
+}
+
+.qt-pill-avoid {
+  background: #FEE2E2;
+  color: #991B1B;
+}
+
+.qt-queue-card {
+  border: 1px solid var(--rh-line);
+  background: var(--rh-card);
+  border-radius: 18px;
+  padding: 1rem;
+  min-height: 10.5rem;
+  box-shadow: 0 1px 2px rgba(16, 24, 40, 0.04);
+}
+
+.qt-card-symbol {
+  color: var(--rh-ink);
+  font-size: 1.35rem;
+  font-weight: 900;
+}
+
+.qt-card-score {
+  color: var(--rh-ink);
+  font-size: 2rem;
+  font-weight: 900;
+  font-variant-numeric: tabular-nums;
+}
+
 .qt-action-buy {
   border-left: 5px solid var(--rh-green) !important;
 }
@@ -845,20 +922,72 @@ def render_logo():
 
 
 def render_header():
-    with st.container(border=True):
-        left, right = st.columns([0.72, 0.28], vertical_alignment="center")
-        with left:
-            st.caption("AI stock picker · smart signals · portfolio guard")
-            st.title("Discover trade candidates before you trade.")
-            st.subheader("QuanTrade scans, ranks, explains, and controls risk.")
-            st.write(
-                "Inspired by professional AI research tools, the agent starts with market discovery, then turns the best "
-                "setups into entry triggers, stop levels, targets, and position sizes."
+    st.caption("QuanTrade AI Agent")
+    st.markdown('<div class="qt-app-title">Today\'s market decision desk</div>', unsafe_allow_html=True)
+    st.caption("Scan the market first. Open one stock. Follow the risk plan. Informational only, not financial advice.")
+
+
+def today_answer(regime, plans):
+    buy_plans = [plan for plan in plans if plan["decision"] == "BUY SETUP"]
+    watch_plans = [plan for plan in plans if plan["decision"] in ["WAIT FOR TRIGGER", "HOLD / WATCH"]]
+    if regime["participation"] == "defensive":
+        return "Defensive", "Protect capital. Only review exceptional setups and avoid weak charts."
+    if buy_plans:
+        leader = buy_plans[0]
+        return "Selective Buy Mode", f"Best candidate is {leader['symbol']}, but only above ${leader['entry']} with a stop near ${leader['stop']}."
+    if watch_plans:
+        leader = watch_plans[0]
+        return "Wait For Confirmation", f"{leader['symbol']} is closest, but the agent wants confirmation before any new trade."
+    return "No Trade", "The scan does not show a clean opportunity. Waiting is the trade."
+
+
+def render_today_answer(regime, plans, risk_profile):
+    answer, detail = today_answer(regime, plans)
+    buy_count = sum(1 for plan in plans if plan["decision"] == "BUY SETUP")
+    watch_count = sum(1 for plan in plans if plan["decision"] in ["WAIT FOR TRIGGER", "HOLD / WATCH"])
+    avoid_count = sum(1 for plan in plans if plan["decision"] == "SELL / AVOID")
+    risk_budget = money(risk_profile.account_size * risk_profile.risk_per_trade_percent / 100)
+
+    st.markdown(
+        f"""
+        <div class="qt-brief">
+          <div class="qt-section-kicker">Today's Answer</div>
+          <h2>{answer}</h2>
+          <p class="qt-brief-sub">{detail}</p>
+          <div>
+            <span class="qt-pill qt-pill-buy">Buy setups: {buy_count}</span>
+            <span class="qt-pill qt-pill-watch">Watch: {watch_count}</span>
+            <span class="qt-pill qt-pill-avoid">Avoid: {avoid_count}</span>
+            <span class="qt-pill qt-pill-watch">Risk/trade: ${risk_budget}</span>
+            <span class="qt-pill qt-pill-watch">Market: {regime['participation'].title()}</span>
+          </div>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+
+
+def render_opportunity_queue(plans):
+    st.markdown('<div class="qt-section-kicker">Opportunity Queue</div>', unsafe_allow_html=True)
+    st.subheader("What deserves attention now")
+    top_plans = plans[:3]
+    cols = st.columns(3)
+    for col, plan in zip(cols, top_plans):
+        pill_class = "qt-pill-buy" if plan["decision"] == "BUY SETUP" else "qt-pill-avoid" if plan["decision"] == "SELL / AVOID" else "qt-pill-watch"
+        with col:
+            st.markdown(
+                f"""
+                <div class="qt-queue-card">
+                  <div class="qt-card-symbol">{plan['symbol']}</div>
+                  <div class="qt-muted">{plan['name']}</div>
+                  <div class="qt-card-score">{plan['opportunity_score']}</div>
+                  <span class="qt-pill {pill_class}">{plan['decision']}</span>
+                  <div class="qt-muted">Entry ${plan['entry']} · Stop ${plan['stop']}</div>
+                  <div class="qt-muted">Business {plan['business_quality']['quality_grade']} · {plan['rating']}</div>
+                </div>
+                """,
+                unsafe_allow_html=True,
             )
-            st.caption("For informational purposes only. Not financial advice.")
-        with right:
-            st.metric("Agent Mode", "Scan first")
-            st.metric("Risk Posture", "No overtrade")
 
 
 def render_screener_table(plans):
@@ -885,11 +1014,10 @@ def render_screener_table(plans):
             }
         )
 
-    st.markdown('<div class="qt-section-kicker">Ranked Screener</div>', unsafe_allow_html=True)
-    st.subheader("AI Stock Picker")
+    st.markdown('<div class="qt-section-kicker">AI Stock Picker</div>', unsafe_allow_html=True)
+    st.subheader("Ranked opportunities")
     st.markdown(
-        '<div class="qt-screener-note">Start here: QuanTrade scans the universe for you, ranks the best setups, '
-        "and separates buy candidates from wait and sell/avoid names.</div>",
+        '<div class="qt-screener-note">This table is the main workflow: rank first, then open one ticker below for a full decision page.</div>',
         unsafe_allow_html=True,
     )
 
@@ -1209,9 +1337,11 @@ def main():
     with st.sidebar:
         render_logo()
         st.divider()
-        st.subheader("1. Run Screener")
-        universe_name = st.selectbox("Market to scan", list(DEFAULT_UNIVERSES.keys()))
-        st.caption(f"The agent will scan {len(DEFAULT_UNIVERSES[universe_name])} symbols from this market group.")
+        st.subheader("Daily Scan")
+        strategy_mode = st.selectbox("Strategy lens", ["Swing trade", "Breakout", "Pullback", "Small-cap discovery", "Defensive watchlist"])
+        universe_index = 1 if "Auto: Broad opportunity scan" in DEFAULT_UNIVERSES else 0
+        universe_name = st.selectbox("Market universe", list(DEFAULT_UNIVERSES.keys()), index=universe_index)
+        st.caption(f"{len(DEFAULT_UNIVERSES[universe_name])} symbols will be ranked by trade signal and business quality.")
         use_live_data = st.toggle("Use live Yahoo Finance data when available", value=True)
         max_results = st.slider("Ranked results to show", 5, 40, 15)
         rating_filter = st.selectbox("Minimum rating", ["All ratings", "Buy or better", "Strong Buy only"])
@@ -1220,7 +1350,7 @@ def main():
             use_custom_tickers = st.checkbox("Override market scan with custom tickers", value=False)
             custom = st.text_area("Custom tickers", value=", ".join(DEFAULT_UNIVERSES[universe_name]), height=90)
         st.divider()
-        st.subheader("2. Set Risk")
+        st.subheader("Risk Rules")
         account_size = st.number_input("Account size", min_value=1000.0, value=10000.0, step=500.0)
         risk_percent = st.number_input("Risk per trade (%)", min_value=0.1, max_value=5.0, value=1.0, step=0.1)
         max_position_percent = st.number_input("Max position size (%)", min_value=1.0, max_value=100.0, value=25.0, step=1.0)
@@ -1232,10 +1362,19 @@ def main():
         future_sectors = st.multiselect("Future sectors", ["All"] + sorted({item[2] for item in FUTURE_COMPANIES}), default=["All"])
 
     render_header()
-    run_scan = st.button("Run Top-Rated Stock Scan", type="primary")
+    run_scan = st.button("Scan Today's Market", type="primary")
 
     if not run_scan and "plans" not in st.session_state:
-        st.info("Choose a market universe and risk settings, then click Run Top-Rated Stock Scan.")
+        st.markdown(
+            """
+            <div class="qt-brief">
+              <div class="qt-section-kicker">Start Here</div>
+              <h2>Run the daily scan</h2>
+              <p class="qt-brief-sub">QuanTrade will rank the market, choose priority names, and build one-stock decision pages with trade levels, financial quality, and risk sizing.</p>
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
         st.caption("QuanTrade is a decision-support assistant. It does not guarantee outcomes.")
         return
 
@@ -1251,6 +1390,7 @@ def main():
         st.session_state["risk_profile"] = risk_profile
         st.session_state["last_scan"] = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC")
         st.session_state["scan_universe"] = "Custom tickers" if use_custom_tickers else universe_name
+        st.session_state["strategy_mode"] = strategy_mode
         st.session_state["scanned_count"] = len(tickers)
 
     regime = st.session_state["regime"]
@@ -1265,6 +1405,7 @@ def main():
 
     st.caption(
         f"Scanned: {st.session_state.get('scan_universe', universe_name)} · "
+        f"Strategy: {st.session_state.get('strategy_mode', strategy_mode)} · "
         f"{st.session_state.get('scanned_count', len(raw_plans))} symbols · Average Opportunity Score: {avg_score}/100 · "
         f"Last scan: {st.session_state['last_scan']} · Data mode: {regime['source']}"
     )
@@ -1273,61 +1414,41 @@ def main():
         st.warning("No names match the current rating filter. Change Minimum rating or show sell/avoid names.")
         return
 
-    render_agent_console(regime, plans, risk_profile)
-    render_screener_table(plans)
-
     buy_plans = [plan for plan in plans if plan["decision"] == "BUY SETUP"]
     wait_plans = [plan for plan in plans if plan["decision"] in ["WAIT FOR TRIGGER", "HOLD / WATCH"]]
     sell_plans = [plan for plan in plans if plan["decision"] == "SELL / AVOID"]
 
-    selected_symbol = st.selectbox(
-        "Open stock detail",
-        [plan["symbol"] for plan in plans],
-        index=0,
-        help="Review the full decision page for one stock.",
-    )
-    selected_plan = next(plan for plan in plans if plan["symbol"] == selected_symbol)
-    render_stock_detail(selected_plan, regime)
-
-    st.subheader("Trade Plan Details")
-    if buy_plans:
-        with st.expander("Buy-rated setups", expanded=True):
-            for plan in buy_plans:
-                render_plan(plan)
-    else:
-        st.warning("No clean buy setup found from this scan. Waiting is a valid trading decision.")
-
-    with st.expander("Wait / Hold candidates", expanded=True):
-        if wait_plans:
-            for plan in wait_plans:
-                render_plan(plan)
-        else:
-            st.caption("No wait/hold names in this scan.")
-
-    with st.expander("Sell / Avoid candidates", expanded=show_avoid):
-        if sell_plans:
-            for plan in sell_plans:
-                render_plan(plan)
-        else:
-            st.caption("No sell/avoid names in this scan.")
+    render_today_answer(regime, plans, risk_profile)
+    render_opportunity_queue(plans)
 
     st.divider()
-    movers_tab, signals_tab, guard_tab, future_tab, assistant_tab = st.tabs(
-        ["Market Movers", "Smart Signals", "Portfolio Guard", "Future Watchlist", "Ask AI"]
+    opportunities_tab, workbench_tab, risk_tab, discover_tab, assistant_tab = st.tabs(
+        ["Opportunities", "Stock Workbench", "Risk Desk", "Discover", "Ask AI"]
     )
 
-    with movers_tab:
+    with opportunities_tab:
+        render_screener_table(plans)
+        st.divider()
         st.subheader("Market Movers")
         st.caption("High activity names from the current scan, ranked by relative volume.")
         render_market_movers(plans)
 
-    with signals_tab:
+    with workbench_tab:
+        selected_symbol = st.selectbox(
+            "Stock to inspect",
+            [plan["symbol"] for plan in plans],
+            index=0,
+            help="Open one stock and review the full decision page.",
+        )
+        selected_plan = next(plan for plan in plans if plan["symbol"] == selected_symbol)
+        render_stock_detail(selected_plan, regime)
+
+    with risk_tab:
+        render_portfolio_guard(risk_profile, buy_plans)
+        st.divider()
         render_smart_signals(plans)
 
-    with guard_tab:
-        render_portfolio_guard(risk_profile, buy_plans)
-
-    with future_tab:
+    with discover_tab:
         st.subheader("Future Watchlist")
         st.caption("Longer-term opportunities are watchlist-first. They are not urgent buy/sell signals.")
         for item in futures:
