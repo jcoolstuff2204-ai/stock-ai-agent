@@ -818,6 +818,83 @@ def opportunity_score(trade_score, quality_score):
     return clamp_score(trade_score * 0.62 + quality_score * 0.38)
 
 
+def interpret_screen_prompt(prompt, playbook):
+    text = f"{prompt} {playbook}".lower()
+    settings = {
+        "min_trade_signal": 55,
+        "min_business_quality": 50,
+        "prefer": [],
+        "avoid": [],
+        "timeframe": "swing",
+        "strict_confirmation": False,
+    }
+    if any(word in text for word in ["strong business", "quality", "cash flow", "fundamental", "profitable"]):
+        settings["min_business_quality"] = 70
+        settings["prefer"].append("business quality")
+    if any(word in text for word in ["breakout", "momentum", "relative volume", "rvol"]):
+        settings["min_trade_signal"] = 70
+        settings["prefer"].append("momentum")
+        settings["strict_confirmation"] = True
+    if any(word in text for word in ["pullback", "support", "dip"]):
+        settings["prefer"].append("pullback")
+    if any(word in text for word in ["small cap", "speculative", "future"]):
+        settings["min_business_quality"] = 45
+        settings["prefer"].append("future potential")
+    if any(word in text for word in ["defensive", "safe", "low risk", "protect"]):
+        settings["min_trade_signal"] = 65
+        settings["min_business_quality"] = 70
+        settings["avoid"].append("high volatility")
+        settings["strict_confirmation"] = True
+    if any(word in text for word in ["crypto", "bitcoin", "ethereum", "etf"]):
+        settings["prefer"].append("cross asset")
+    return settings
+
+
+def playbook_adjustment(plan, settings):
+    adjustment = 0
+    factors = plan["factor_scores"]
+    quality = plan["business_quality"]
+    fundamentals = plan["fundamentals"]
+    theme = plan_theme(plan["symbol"])
+
+    if "business quality" in settings["prefer"]:
+        adjustment += 8 if quality["quality_score"] >= 75 else -6
+        adjustment += 4 if safe_number(fundamentals.get("fcf_margin")) > 10 else 0
+    if "momentum" in settings["prefer"]:
+        adjustment += 8 if factors["Momentum"] >= 76 and plan["relative_volume"] >= 1.0 else -5
+        adjustment += 4 if plan["price"] >= plan["resistance"] * 0.985 else 0
+    if "pullback" in settings["prefer"]:
+        near_support = (plan["price"] - plan["support"]) / max(plan["price"], 0.01) <= 0.06
+        adjustment += 8 if near_support and plan["price"] > plan["sma50"] else -3
+    if "future potential" in settings["prefer"]:
+        adjustment += 6 if theme in ["AI/Semiconductors", "Crypto-linked", "Crypto", "Other"] else 0
+        adjustment -= 5 if quality["quality_score"] < 45 else 0
+    if "cross asset" in settings["prefer"]:
+        adjustment += 6 if theme in ["Crypto", "Crypto-linked", "ETF/Core"] else 0
+    if "high volatility" in settings["avoid"]:
+        atr_percent = (plan["atr"] / max(plan["price"], 0.01)) * 100
+        adjustment -= 10 if atr_percent > 6 else 0
+    if settings["strict_confirmation"] and plan["decision"] not in ["BUY SETUP", "WAIT FOR TRIGGER"]:
+        adjustment -= 10
+    return adjustment
+
+
+def apply_workflow_scoring(plans, screen_prompt, playbook):
+    settings = interpret_screen_prompt(screen_prompt, playbook)
+    qualified = []
+    for plan in plans:
+        adjusted = clamp_score(plan["opportunity_score"] + playbook_adjustment(plan, settings))
+        plan["workflow_score"] = adjusted
+        plan["screen_match"] = (
+            plan["score"] >= settings["min_trade_signal"]
+            and plan["business_quality"]["quality_score"] >= settings["min_business_quality"]
+        )
+        plan["screen_settings"] = settings
+        qualified.append(plan)
+    qualified.sort(key=lambda item: (item["screen_match"], item["workflow_score"]), reverse=True)
+    return qualified
+
+
 def score_factors(quote, regime):
     atr_percent = quote["atr"] / max(quote["price"], 0.01)
     distance_to_resistance = (quote["resistance"] - quote["price"]) / max(quote["price"], 0.01)
@@ -921,14 +998,14 @@ def action_note(decision, quote):
     return "Avoid new buying. If already holding, review whether the position still fits your plan."
 
 
-def scan_trades(tickers, risk_profile, use_live_data, max_results):
+def scan_trades(tickers, risk_profile, use_live_data, max_results, screen_prompt="", playbook="Swing trade"):
     regime = market_regime(use_live_data)
     plans = []
     for symbol in tickers:
         quote = get_quote(symbol, use_live_data)
         fundamentals = get_fundamentals(symbol, use_live_data)
         plans.append(build_trade_plan(quote, fundamentals, regime, risk_profile))
-    plans.sort(key=lambda item: item["opportunity_score"], reverse=True)
+    plans = apply_workflow_scoring(plans, screen_prompt, playbook)
     return regime, plans[:max_results]
 
 
@@ -1232,6 +1309,8 @@ def render_screener_table(plans):
                 "Rank": index,
                 "Ticker": plan["symbol"],
                 "Company": plan["name"],
+                "Workflow": plan.get("workflow_score", plan["opportunity_score"]),
+                "Match": "Yes" if plan.get("screen_match", True) else "No",
                 "Opportunity": plan["opportunity_score"],
                 "Rating": plan["rating"],
                 "Trade Signal": plan["score"],
@@ -1366,6 +1445,61 @@ def render_smart_signals(plans):
             st.caption(f"Invalidation: {plan['invalidation']}")
 
 
+def action_brief(plan, regime, risk_profile):
+    if plan["decision"] == "BUY SETUP":
+        action = f"Buy only if {plan['symbol']} confirms above ${plan['entry']}."
+    elif plan["decision"] == "WAIT FOR TRIGGER":
+        action = f"Wait for {plan['symbol']} to reclaim or break above ${plan['entry']} with volume."
+    elif plan["decision"] == "HOLD / WATCH":
+        action = f"Watch {plan['symbol']}; do not open a fresh trade yet."
+    else:
+        action = f"Avoid new buying in {plan['symbol']} for now."
+
+    blockers = []
+    if not plan.get("screen_match", True):
+        settings = plan.get("screen_settings", {})
+        blockers.append(
+            f"Does not fully match screen thresholds: trade signal >= {settings.get('min_trade_signal', 55)}, "
+            f"business quality >= {settings.get('min_business_quality', 50)}."
+        )
+    if regime["participation"] == "defensive":
+        blockers.append("Market mode is defensive.")
+    if plan["business_quality"]["quality_score"] < 55:
+        blockers.append("Business quality is weak/speculative.")
+    if plan["factor_scores"]["Risk"] < 55:
+        blockers.append("Technical risk score is low.")
+
+    next_steps = [
+        action,
+        f"Risk size: {plan['sizing']['shares']} shares, max loss about ${plan['sizing']['max_loss']}.",
+        f"Invalidation: {plan['invalidation']}",
+    ]
+    if blockers:
+        next_steps.insert(1, f"Blocker: {blockers[0]}")
+    return next_steps
+
+
+def render_action_brief(plan, regime, risk_profile):
+    st.subheader("Action Brief")
+    st.caption("Clear next steps generated from the selected playbook, screen, and risk rules.")
+    for step in action_brief(plan, regime, risk_profile):
+        st.write(f"- {step}")
+
+
+def render_screen_logic(plan):
+    settings = plan.get("screen_settings", {})
+    st.subheader("Screen Logic")
+    c1, c2, c3 = st.columns(3)
+    c1.metric("Workflow Score", f"{plan.get('workflow_score', plan['opportunity_score'])}/100")
+    c2.metric("Screen Match", "Yes" if plan.get("screen_match", True) else "No")
+    c3.metric("Strict Confirmation", "Yes" if settings.get("strict_confirmation") else "No")
+    st.write(f"Minimum trade signal: {settings.get('min_trade_signal', 55)}")
+    st.write(f"Minimum business quality: {settings.get('min_business_quality', 50)}")
+    prefer = settings.get("prefer") or ["balanced ranking"]
+    avoid = settings.get("avoid") or ["none"]
+    st.caption(f"Preferred: {', '.join(prefer)}. Avoid: {', '.join(avoid)}.")
+
+
 def render_portfolio_guard(risk_profile, buy_plans):
     risk_budget = money(risk_profile.account_size * risk_profile.risk_per_trade_percent / 100)
     daily_stop = money(risk_profile.account_size * risk_profile.max_daily_loss_percent / 100)
@@ -1435,6 +1569,48 @@ def render_portfolio_context(portfolio, plans):
         st.warning(f"Concentration check: {main_theme[1]} tracked names are in {main_theme[0]}. Avoid stacking correlated trades.")
 
 
+def render_playbook_workspace(screen_prompt, strategy_mode, plans, futures):
+    st.subheader("Market Playbook")
+    st.caption("A reusable workflow brief based on the current screen and ranking logic.")
+    settings = interpret_screen_prompt(screen_prompt, strategy_mode)
+    matched = [plan for plan in plans if plan.get("screen_match", True)]
+    buy = [plan for plan in matched if plan["decision"] == "BUY SETUP"]
+    watch = [plan for plan in matched if plan["decision"] in ["WAIT FOR TRIGGER", "HOLD / WATCH"]]
+
+    st.markdown(
+        f"""
+        <div class="qt-ai-card">
+          <div class="qt-section-kicker">Saved Screen</div>
+          <div class="qt-ai-question">{screen_prompt}</div>
+          <div class="qt-ai-summary">
+            Playbook: {strategy_mode}. Minimum trade signal {settings['min_trade_signal']};
+            minimum business quality {settings['min_business_quality']}. Preferred factors:
+            {', '.join(settings['prefer'] or ['balanced ranking'])}.
+          </div>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+
+    c1, c2, c3 = st.columns(3)
+    c1.metric("Matched Ideas", len(matched))
+    c2.metric("Buy Setups", len(buy))
+    c3.metric("Watchlist", len(watch))
+
+    st.write("Workflow:")
+    st.write("- Discover: run this screen on the selected universe.")
+    st.write("- Analyse: open the top matched ticker in Stock Workbench.")
+    st.write("- Act: trade only if the Action Brief has no blocker and the entry trigger confirms.")
+    st.write("- Review: add missed portfolio symbols to custom tickers next scan.")
+
+    if futures:
+        st.divider()
+        st.subheader("Longer-Term Ideas")
+        st.caption("These are watchlist candidates, not urgent trade signals.")
+        for item in futures:
+            render_future_card(item)
+
+
 def percent_text(value):
     return f"{round(safe_number(value), 1)}%"
 
@@ -1456,9 +1632,12 @@ def render_stock_detail(plan, regime):
     with right:
         st.metric("Opportunity Score", f"{plan['opportunity_score']}/100")
 
-    detail_tabs = st.tabs(["Trade Plan", "Financials", "Signals", "Risk", "AI Explanation"])
+    detail_tabs = st.tabs(["Action Brief", "Trade Plan", "Financials", "Signals", "Risk", "Screen Logic"])
 
     with detail_tabs[0]:
+        render_action_brief(plan, regime, st.session_state.get("risk_profile"))
+
+    with detail_tabs[1]:
         c1, c2, c3, c4 = st.columns(4)
         c1.metric("Buy Trigger", f"${plan['entry']}")
         c2.metric("Stop", f"${plan['stop']}")
@@ -1472,7 +1651,7 @@ def render_stock_detail(plan, regime):
         st.write(plan["action_note"])
         st.caption(plan["invalidation"])
 
-    with detail_tabs[1]:
+    with detail_tabs[2]:
         st.subheader(f"Business Quality: {quality['quality_grade']} · {quality['quality_label']}")
         c1, c2, c3, c4, c5 = st.columns(5)
         grades = quality["financial_grades"]
@@ -1498,7 +1677,7 @@ def render_stock_detail(plan, regime):
         m3.metric("P/B", ratio_text(fundamentals["pb"]))
         st.caption(f"{fundamentals['financial_notes']} Source: {fundamentals['fundamental_source']}.")
 
-    with detail_tabs[2]:
+    with detail_tabs[3]:
         c1, c2, c3, c4, c5 = st.columns(5)
         grades = plan["factor_grades"]
         c1.metric("Momentum", grades["Momentum"])
@@ -1511,7 +1690,7 @@ def render_stock_detail(plan, regime):
             st.write(f"- {reason}")
         st.caption(f"Market mode: {regime['participation'].title()} · {regime['rule']}")
 
-    with detail_tabs[3]:
+    with detail_tabs[4]:
         atr_percent = (plan["atr"] / max(plan["price"], 0.01)) * 100
         c1, c2, c3, c4 = st.columns(4)
         c1.metric("ATR", f"${plan['atr']}")
@@ -1524,7 +1703,8 @@ def render_stock_detail(plan, regime):
         st.write("- If price loses VWAP with heavy volume, the setup is invalid.")
         st.write("- If market mode turns defensive, reduce or skip new exposure.")
 
-    with detail_tabs[4]:
+    with detail_tabs[5]:
+        render_screen_logic(plan)
         st.write(
             f"QuanTrade ranks {plan['symbol']} at {plan['opportunity_score']}/100 because the trade signal is "
             f"{plan['score']}/100 and business quality is {quality['quality_score']}/100. "
@@ -1674,7 +1854,7 @@ def main():
         tickers = clean_tickers(custom) if use_custom_tickers else DEFAULT_UNIVERSES[universe_name]
         risk_profile = RiskProfile(account_size, risk_percent, max_position_percent, max_daily_loss_percent)
         with st.spinner("Scanning market, scoring setups, and building risk-aware plans..."):
-            regime, plans = scan_trades(tickers, risk_profile, use_live_data, max_results)
+            regime, plans = scan_trades(tickers, risk_profile, use_live_data, max_results, screen_prompt, strategy_mode)
             futures = scan_future(future_risk, future_sectors, future_results)
         st.session_state["regime"] = regime
         st.session_state["plans"] = plans
@@ -1750,10 +1930,7 @@ def main():
         render_smart_signals(plans)
 
     with discover_tab:
-        st.subheader("Future Watchlist")
-        st.caption("Longer-term opportunities are watchlist-first. They are not urgent buy/sell signals.")
-        for item in futures:
-            render_future_card(item)
+        render_playbook_workspace(st.session_state.get("screen_prompt", screen_prompt), st.session_state.get("strategy_mode", strategy_mode), plans, futures)
 
     with assistant_tab:
         st.subheader("Ask QuanTrade Intelligence")
@@ -1768,6 +1945,8 @@ def main():
                 "market_regime": regime["bias"],
                 "participation": regime["participation"],
                 "rule": regime["rule"],
+                "screen_prompt": st.session_state.get("screen_prompt", screen_prompt),
+                "playbook": st.session_state.get("strategy_mode", strategy_mode),
                 "portfolio": portfolio,
                 "signal_inbox": signal_inbox,
                 "buy_setups": [
