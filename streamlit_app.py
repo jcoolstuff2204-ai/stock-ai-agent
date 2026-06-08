@@ -24,22 +24,28 @@ st.set_page_config(
 BRAND_CSS = """
 <style>
 :root {
-  --rh-bg: #F7F8F6;
-  --rh-card: #FFFFFF;
-  --rh-ink: #0B0F0E;
-  --rh-muted: #6B7280;
-  --rh-line: #E5E7EB;
-  --rh-green: #00C805;
-  --rh-red: #FF5000;
-  --rh-yellow: #F4C430;
+  --rh-bg: #05070D;
+  --rh-card: #0D111C;
+  --rh-panel: #111827;
+  --rh-ink: #F8FAFC;
+  --rh-muted: #94A3B8;
+  --rh-line: #263244;
+  --rh-green: #22C55E;
+  --rh-red: #F43F5E;
+  --rh-yellow: #F59E0B;
+  --rh-cyan: #00E5FF;
+  --rh-purple: #8B5CF6;
 }
 
 html, body, [data-testid="stAppViewContainer"], [data-testid="stHeader"] {
-  background: var(--rh-bg) !important;
+  background:
+    radial-gradient(circle at top left, rgba(0, 229, 255, 0.10), transparent 34rem),
+    radial-gradient(circle at top right, rgba(139, 92, 246, 0.16), transparent 34rem),
+    var(--rh-bg) !important;
 }
 
 [data-testid="stSidebar"] {
-  background: var(--rh-card) !important;
+  background: #080B12 !important;
   border-right: 1px solid var(--rh-line);
 }
 
@@ -76,16 +82,16 @@ p, .stCaption, [data-testid="stMarkdownContainer"] {
 }
 
 button[kind="primary"], .stButton > button {
-  background: var(--rh-green) !important;
-  color: var(--rh-ink) !important;
+  background: linear-gradient(135deg, var(--rh-cyan), var(--rh-purple)) !important;
+  color: #020617 !important;
   border: 0 !important;
-  border-radius: 999px !important;
+  border-radius: 14px !important;
   font-weight: 850 !important;
   min-height: 2.8rem;
 }
 
 button[kind="primary"] *, .stButton > button * {
-  color: var(--rh-ink) !important;
+  color: #020617 !important;
   font-weight: 850 !important;
 }
 
@@ -100,7 +106,7 @@ button[kind="primary"] *, .stButton > button * {
 
 [data-testid="stSidebar"] input,
 [data-testid="stSidebar"] [data-baseweb="input"] {
-  background: #F3F4F6 !important;
+  background: #0D111C !important;
   color: var(--rh-ink) !important;
   border-color: var(--rh-line) !important;
 }
@@ -118,10 +124,10 @@ button[kind="primary"] *, .stButton > button * {
 }
 
 .qt-screener-note {
-  background: #ECFDF3;
-  border: 1px solid #BBF7D0;
+  background: rgba(0, 229, 255, 0.08);
+  border: 1px solid rgba(0, 229, 255, 0.22);
   border-radius: 16px;
-  color: #14532D;
+  color: #CFFAFE;
   padding: 0.85rem 1rem;
   margin: 0.65rem 0 1rem;
   font-weight: 650;
@@ -136,23 +142,23 @@ button[kind="primary"] *, .stButton > button * {
 }
 
 .qt-rating-buy {
-  color: #087B2F;
+  color: #22C55E;
   font-weight: 850;
 }
 
 .qt-rating-wait {
-  color: #8A6500;
+  color: #FACC15;
   font-weight: 850;
 }
 
 .qt-rating-sell {
-  color: #B42318;
+  color: #FB7185;
   font-weight: 850;
 }
 
 .qt-app-title {
   color: var(--rh-ink);
-  font-size: 2.15rem;
+  font-size: 2.45rem;
   line-height: 1.1;
   font-weight: 900;
   margin: 0.2rem 0 0.35rem;
@@ -163,9 +169,10 @@ button[kind="primary"] *, .stButton > button * {
 }
 
 .qt-brief {
-  background: #0B0F0E;
+  background: linear-gradient(135deg, rgba(0, 229, 255, 0.16), rgba(139, 92, 246, 0.20)), #0D111C;
   color: #FFFFFF;
   border-radius: 22px;
+  border: 1px solid rgba(148, 163, 184, 0.22);
   padding: 1.35rem 1.45rem;
   margin: 0.35rem 0 1.2rem;
 }
@@ -191,27 +198,27 @@ button[kind="primary"] *, .stButton > button * {
 }
 
 .qt-pill-buy {
-  background: #D1FAE5;
-  color: #065F46;
+  background: rgba(34, 197, 94, 0.16);
+  color: #86EFAC;
 }
 
 .qt-pill-watch {
-  background: #FEF3C7;
-  color: #92400E;
+  background: rgba(245, 158, 11, 0.16);
+  color: #FCD34D;
 }
 
 .qt-pill-avoid {
-  background: #FEE2E2;
-  color: #991B1B;
+  background: rgba(244, 63, 94, 0.16);
+  color: #FDA4AF;
 }
 
 .qt-queue-card {
   border: 1px solid var(--rh-line);
-  background: var(--rh-card);
+  background: linear-gradient(180deg, rgba(255,255,255,0.035), rgba(255,255,255,0.015)), var(--rh-card);
   border-radius: 18px;
   padding: 1rem;
   min-height: 10.5rem;
-  box-shadow: 0 1px 2px rgba(16, 24, 40, 0.04);
+  box-shadow: 0 18px 42px rgba(0, 0, 0, 0.18);
 }
 
 .qt-card-symbol {
@@ -243,6 +250,40 @@ button[kind="primary"] *, .stButton > button * {
 .qt-alert-body {
   color: var(--rh-muted);
   margin-top: 0.15rem;
+}
+
+.qt-pillar {
+  border: 1px solid var(--rh-line);
+  border-radius: 18px;
+  background: rgba(13, 17, 28, 0.82);
+  padding: 1rem;
+  min-height: 9.5rem;
+}
+
+.qt-pillar-title {
+  color: var(--rh-ink);
+  font-size: 1.05rem;
+  font-weight: 900;
+}
+
+.qt-ai-card {
+  border: 1px solid rgba(0, 229, 255, 0.24);
+  border-radius: 22px;
+  background: linear-gradient(135deg, rgba(0, 229, 255, 0.10), rgba(139, 92, 246, 0.14)), #0D111C;
+  padding: 1.1rem;
+  margin: 0.75rem 0 1rem;
+}
+
+.qt-ai-question {
+  color: #E2E8F0;
+  font-weight: 850;
+}
+
+.qt-ai-summary {
+  color: #F8FAFC;
+  font-size: 1.05rem;
+  line-height: 1.55;
+  margin-top: 0.45rem;
 }
 
 .qt-action-buy {
@@ -964,8 +1005,53 @@ def render_logo():
 
 def render_header():
     st.caption("QuanTrade AI Agent")
-    st.markdown('<div class="qt-app-title">Today\'s market decision desk</div>', unsafe_allow_html=True)
-    st.caption("Scan the market first. Open one stock. Follow the risk plan. Informational only, not financial advice.")
+    st.markdown('<div class="qt-app-title">Discover, analyse, and act in one trading workspace.</div>', unsafe_allow_html=True)
+    st.caption("AI stock screening, ticker intelligence, portfolio-aware signals, and risk-aware next steps. Informational only, not financial advice.")
+
+
+def render_platform_pillars():
+    cols = st.columns(3)
+    pillars = [
+        ("Discover", "Ask in plain English, scan market universes, and surface qualified ideas without starting from a ticker."),
+        ("Analyse", "Combine trade timing, financial quality, chart levels, risk flags, and portfolio context into one stock workbench."),
+        ("Act", "Turn the insight into entry trigger, stop, target, position size, and a clear reason to skip."),
+    ]
+    for col, (title, body) in zip(cols, pillars):
+        with col:
+            st.markdown(
+                f"""
+                <div class="qt-pillar">
+                  <div class="qt-section-kicker">Platform Pillar</div>
+                  <div class="qt-pillar-title">{title}</div>
+                  <div class="qt-alert-body">{body}</div>
+                </div>
+                """,
+                unsafe_allow_html=True,
+            )
+
+
+def render_ai_showcase(plans):
+    if not plans:
+        return
+    leader = plans[0]
+    quality = leader["business_quality"]
+    st.markdown(
+        f"""
+        <div class="qt-ai-card">
+          <div class="qt-section-kicker">AI Showcase</div>
+          <div class="qt-ai-question">Investor question: “What matters most about {leader['symbol']} right now?”</div>
+          <div class="qt-ai-summary">
+            {leader['symbol']} ranks {leader['opportunity_score']}/100. Trade signal is {leader['score']}/100 and
+            business quality is {quality['quality_grade']} ({quality['quality_score']}/100). QuanTrade says
+            <strong>{leader['decision']}</strong>: only consider action near ${leader['entry']} with risk controlled near ${leader['stop']}.
+          </div>
+          <span class="qt-pill qt-pill-buy">Opportunity {leader['opportunity_score']}</span>
+          <span class="qt-pill qt-pill-watch">Business {quality['quality_grade']}</span>
+          <span class="qt-pill qt-pill-watch">Target ${leader['target1']}</span>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
 
 
 def today_answer(regime, plans):
@@ -1530,8 +1616,13 @@ def main():
     with st.sidebar:
         render_logo()
         st.divider()
-        st.subheader("Daily Scan")
-        strategy_mode = st.selectbox("Strategy lens", ["Swing trade", "Breakout", "Pullback", "Small-cap discovery", "Defensive watchlist"])
+        st.subheader("AI Screening")
+        screen_prompt = st.text_area(
+            "Plain-English screen",
+            value="Find risk-aware swing trade candidates with strong business quality and clear entry levels.",
+            height=86,
+        )
+        strategy_mode = st.selectbox("Playbook", ["Swing trade", "Breakout", "Pullback", "Small-cap discovery", "Defensive watchlist"])
         universe_index = 1 if "Auto: Broad opportunity scan" in DEFAULT_UNIVERSES else 0
         universe_name = st.selectbox("Market universe", list(DEFAULT_UNIVERSES.keys()), index=universe_index)
         st.caption(f"{len(DEFAULT_UNIVERSES[universe_name])} symbols will be ranked by trade signal and business quality.")
@@ -1570,8 +1661,8 @@ def main():
             """
             <div class="qt-brief">
               <div class="qt-section-kicker">Start Here</div>
-              <h2>Run the daily scan</h2>
-              <p class="qt-brief-sub">QuanTrade will rank the market, choose priority names, and build one-stock decision pages with trade levels, financial quality, and risk sizing.</p>
+              <h2>Start with a screen, finish with a decision</h2>
+              <p class="qt-brief-sub">QuanTrade will discover qualified ideas, analyse the top tickers, and turn the strongest setups into entry levels, stops, targets, and portfolio-aware next steps.</p>
             </div>
             """,
             unsafe_allow_html=True,
@@ -1592,6 +1683,7 @@ def main():
         st.session_state["last_scan"] = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC")
         st.session_state["scan_universe"] = "Custom tickers" if use_custom_tickers else universe_name
         st.session_state["strategy_mode"] = strategy_mode
+        st.session_state["screen_prompt"] = screen_prompt
         st.session_state["portfolio"] = parse_portfolio(portfolio_text)
         st.session_state["scanned_count"] = len(tickers)
 
@@ -1609,6 +1701,7 @@ def main():
     st.caption(
         f"Scanned: {st.session_state.get('scan_universe', universe_name)} · "
         f"Strategy: {st.session_state.get('strategy_mode', strategy_mode)} · "
+        f"Screen: {st.session_state.get('screen_prompt', screen_prompt)} · "
         f"{st.session_state.get('scanned_count', len(raw_plans))} symbols · Average Opportunity Score: {avg_score}/100 · "
         f"Last scan: {st.session_state['last_scan']} · Data mode: {regime['source']}"
     )
@@ -1617,17 +1710,19 @@ def main():
         st.warning("No names match the current rating filter. Change Minimum rating or show sell/avoid names.")
         return
 
+    render_platform_pillars()
     buy_plans = [plan for plan in plans if plan["decision"] == "BUY SETUP"]
     wait_plans = [plan for plan in plans if plan["decision"] in ["WAIT FOR TRIGGER", "HOLD / WATCH"]]
     sell_plans = [plan for plan in plans if plan["decision"] == "SELL / AVOID"]
 
     render_today_answer(regime, plans, risk_profile)
+    render_ai_showcase(plans)
     render_opportunity_queue(plans)
     render_signal_inbox(plans, portfolio)
 
     st.divider()
     opportunities_tab, workbench_tab, risk_tab, discover_tab, assistant_tab = st.tabs(
-        ["Opportunities", "Stock Workbench", "Risk Desk", "Discover", "Ask AI"]
+        ["Discover", "Analyse", "Act", "Playbooks", "Ask AI"]
     )
 
     with opportunities_tab:
