@@ -227,6 +227,24 @@ button[kind="primary"] *, .stButton > button * {
   font-variant-numeric: tabular-nums;
 }
 
+.qt-alert-row {
+  border: 1px solid var(--rh-line);
+  border-radius: 16px;
+  background: var(--rh-card);
+  padding: 0.85rem 1rem;
+  margin: 0.55rem 0;
+}
+
+.qt-alert-title {
+  color: var(--rh-ink);
+  font-weight: 900;
+}
+
+.qt-alert-body {
+  color: var(--rh-muted);
+  margin-top: 0.15rem;
+}
+
 .qt-action-buy {
   border-left: 5px solid var(--rh-green) !important;
 }
@@ -266,6 +284,10 @@ DEFAULT_UNIVERSES = {
     ],
     "Auto: ETFs and index pulse": [
         "SPY", "QQQ", "IWM", "DIA", "XLK", "XLF", "XLE", "SMH", "ARKK", "IBB",
+    ],
+    "Auto: Stocks ETF crypto intelligence": [
+        "SPY", "QQQ", "IWM", "SMH", "ARKK", "IBB", "NVDA", "AAPL", "MSFT", "TSLA",
+        "COIN", "MSTR", "MARA", "RIOT", "CLSK", "BTC-USD", "ETH-USD", "SOL-USD",
     ],
 }
 
@@ -331,6 +353,21 @@ def money(value):
 
 def clean_tickers(text):
     return [part.strip().upper() for part in text.replace("\n", ",").split(",") if part.strip()]
+
+
+def parse_portfolio(text):
+    holdings = {}
+    for part in text.replace("\n", ",").split(","):
+        token = part.strip()
+        if not token:
+            continue
+        pieces = token.replace(":", " ").split()
+        symbol = pieces[0].upper()
+        amount = 0.0
+        if len(pieces) > 1:
+            amount = safe_number(pieces[1].replace("$", "").replace(",", ""), 0.0)
+        holdings[symbol] = amount
+    return holdings
 
 
 def get_secret(name, default=""):
@@ -902,7 +939,11 @@ def openai_brief(prompt):
                 "input": [
                     {
                         "role": "system",
-                        "content": "You are QuanTrade, a cautious market-analysis assistant. Give concise, risk-aware insight. Never promise profit.",
+                        "content": (
+                            "You are QuanTrade, a cautious market-intelligence assistant for stocks, ETFs, and crypto. "
+                            "Use the provided scan, portfolio, and signal inbox first. Separate trade setup, business quality, "
+                            "portfolio risk, and uncertainty. Never promise profit or give guaranteed financial advice."
+                        ),
                     },
                     {"role": "user", "content": prompt},
                 ],
@@ -988,6 +1029,111 @@ def render_opportunity_queue(plans):
                 """,
                 unsafe_allow_html=True,
             )
+
+
+THEME_MAP = {
+    "NVDA": "AI/Semiconductors", "AMD": "AI/Semiconductors", "AVGO": "AI/Semiconductors", "TSM": "AI/Semiconductors",
+    "SMCI": "AI/Semiconductors", "ARM": "AI/Semiconductors", "MU": "AI/Semiconductors", "INTC": "AI/Semiconductors",
+    "AAPL": "Mega-cap tech", "MSFT": "Mega-cap tech", "META": "Mega-cap tech", "AMZN": "Mega-cap tech", "GOOGL": "Mega-cap tech",
+    "COIN": "Crypto-linked", "MSTR": "Crypto-linked", "MARA": "Crypto-linked", "RIOT": "Crypto-linked", "CLSK": "Crypto-linked",
+    "BTC-USD": "Crypto", "ETH-USD": "Crypto", "SOL-USD": "Crypto",
+    "JPM": "Financials", "BAC": "Financials", "GS": "Financials", "XOM": "Energy",
+    "SPY": "ETF/Core", "QQQ": "ETF/Core", "IWM": "ETF/Core", "DIA": "ETF/Core", "SMH": "ETF/Core",
+}
+
+
+def plan_theme(symbol):
+    return THEME_MAP.get(symbol, "Other")
+
+
+def build_signal_inbox(plans, portfolio):
+    alerts = []
+    portfolio_symbols = set(portfolio.keys())
+    plan_by_symbol = {plan["symbol"]: plan for plan in plans}
+
+    for symbol in portfolio_symbols:
+        plan = plan_by_symbol.get(symbol)
+        if not plan:
+            alerts.append(
+                {
+                    "type": "Holding not scanned",
+                    "symbol": symbol,
+                    "tone": "watch",
+                    "title": f"{symbol}: not in this scan",
+                    "body": "Add it to custom tickers if you want a current trade and business-quality read.",
+                }
+            )
+            continue
+        if plan["decision"] == "SELL / AVOID":
+            tone = "avoid"
+            body = f"Your holding is flagged avoid/reduce. Review stop risk near ${plan['stop']} and avoid adding exposure."
+        elif plan["decision"] == "BUY SETUP":
+            tone = "buy"
+            body = f"Your holding has a buy setup, valid only above ${plan['entry']} with risk controlled near ${plan['stop']}."
+        else:
+            tone = "watch"
+            body = f"Your holding is watch-only. QuanTrade wants confirmation before new exposure."
+        alerts.append({"type": "Portfolio", "symbol": symbol, "tone": tone, "title": f"{symbol}: {plan['decision']}", "body": body})
+
+    top_buy = [plan for plan in plans if plan["decision"] == "BUY SETUP" and plan["symbol"] not in portfolio_symbols]
+    for plan in top_buy[:3]:
+        alerts.append(
+            {
+                "type": "Opportunity",
+                "symbol": plan["symbol"],
+                "tone": "buy",
+                "title": f"{plan['symbol']}: new candidate",
+                "body": f"Opportunity {plan['opportunity_score']}/100. Entry ${plan['entry']}, stop ${plan['stop']}, business grade {plan['business_quality']['quality_grade']}.",
+            }
+        )
+
+    theme_counts = {}
+    for symbol in portfolio_symbols:
+        theme = plan_theme(symbol)
+        theme_counts[theme] = theme_counts.get(theme, 0) + 1
+    for theme, count in sorted(theme_counts.items(), key=lambda item: item[1], reverse=True):
+        if count >= 3 and theme != "Other":
+            alerts.append(
+                {
+                    "type": "Concentration",
+                    "symbol": theme,
+                    "tone": "watch",
+                    "title": f"{theme}: concentration check",
+                    "body": f"You listed {count} names in this theme. Limit new trades in the same group unless risk is reduced elsewhere.",
+                }
+            )
+            break
+
+    if not alerts:
+        best = plans[0]
+        alerts.append(
+            {
+                "type": "Market",
+                "symbol": best["symbol"],
+                "tone": "watch",
+                "title": "No portfolio entered",
+                "body": f"QuanTrade is running in discovery mode. Top scanned name is {best['symbol']} at {best['opportunity_score']}/100.",
+            }
+        )
+    return alerts[:6]
+
+
+def render_signal_inbox(plans, portfolio):
+    alerts = build_signal_inbox(plans, portfolio)
+    st.markdown('<div class="qt-section-kicker">Signal Inbox</div>', unsafe_allow_html=True)
+    st.subheader("What changed for you")
+    for alert in alerts:
+        pill_class = "qt-pill-buy" if alert["tone"] == "buy" else "qt-pill-avoid" if alert["tone"] == "avoid" else "qt-pill-watch"
+        st.markdown(
+            f"""
+            <div class="qt-alert-row">
+              <span class="qt-pill {pill_class}">{alert['type']}</span>
+              <div class="qt-alert-title">{alert['title']}</div>
+              <div class="qt-alert-body">{alert['body']}</div>
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
 
 
 def render_screener_table(plans):
@@ -1154,6 +1300,53 @@ def render_portfolio_guard(risk_profile, buy_plans):
     st.write("- Skip trades if the market regime turns defensive.")
     st.write("- Stop after the daily loss limit is reached.")
     st.write("- Exit logic matters more than entry logic: respect invalidation levels.")
+
+
+def render_portfolio_context(portfolio, plans):
+    st.subheader("Portfolio Context")
+    if not portfolio:
+        st.info("Add holdings or watchlist symbols in the sidebar to personalize alerts.")
+        return
+
+    plan_by_symbol = {plan["symbol"]: plan for plan in plans}
+    covered = [symbol for symbol in portfolio if symbol in plan_by_symbol]
+    missing = [symbol for symbol in portfolio if symbol not in plan_by_symbol]
+    exposure = sum(value for value in portfolio.values() if value > 0)
+    themes = {}
+    for symbol in portfolio:
+        theme = plan_theme(symbol)
+        themes[theme] = themes.get(theme, 0) + 1
+
+    c1, c2, c3 = st.columns(3)
+    c1.metric("Tracked Symbols", len(portfolio))
+    c2.metric("Scanned Holdings", len(covered))
+    c3.metric("Stated Exposure", f"${money(exposure)}" if exposure else "Not entered")
+
+    if covered:
+        rows = []
+        for symbol in covered:
+            plan = plan_by_symbol[symbol]
+            rows.append(
+                {
+                    "Ticker": symbol,
+                    "Decision": plan["decision"],
+                    "Opportunity": plan["opportunity_score"],
+                    "Trade Signal": plan["score"],
+                    "Business": f"{plan['business_quality']['quality_grade']} ({plan['business_quality']['quality_score']})",
+                    "Stop": f"${plan['stop']}",
+                }
+            )
+        if pd is not None:
+            st.dataframe(pd.DataFrame(rows), use_container_width=True, hide_index=True)
+        else:
+            for row in rows:
+                st.write(row)
+
+    if missing:
+        st.caption(f"Not in current scan: {', '.join(missing)}. Add them to custom tickers for full analysis.")
+    main_theme = max(themes.items(), key=lambda item: item[1])
+    if main_theme[1] >= 3 and main_theme[0] != "Other":
+        st.warning(f"Concentration check: {main_theme[1]} tracked names are in {main_theme[0]}. Avoid stacking correlated trades.")
 
 
 def percent_text(value):
@@ -1350,6 +1543,14 @@ def main():
             use_custom_tickers = st.checkbox("Override market scan with custom tickers", value=False)
             custom = st.text_area("Custom tickers", value=", ".join(DEFAULT_UNIVERSES[universe_name]), height=90)
         st.divider()
+        st.subheader("Portfolio Context")
+        portfolio_text = st.text_area(
+            "Holdings / watchlist",
+            value="NVDA 2500, AAPL 1500, SPY 3000",
+            height=82,
+            help="Optional. Use symbols only or symbol + dollar amount, for example: NVDA 2500, AAPL 1500.",
+        )
+        st.divider()
         st.subheader("Risk Rules")
         account_size = st.number_input("Account size", min_value=1000.0, value=10000.0, step=500.0)
         risk_percent = st.number_input("Risk per trade (%)", min_value=0.1, max_value=5.0, value=1.0, step=0.1)
@@ -1391,6 +1592,7 @@ def main():
         st.session_state["last_scan"] = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC")
         st.session_state["scan_universe"] = "Custom tickers" if use_custom_tickers else universe_name
         st.session_state["strategy_mode"] = strategy_mode
+        st.session_state["portfolio"] = parse_portfolio(portfolio_text)
         st.session_state["scanned_count"] = len(tickers)
 
     regime = st.session_state["regime"]
@@ -1400,6 +1602,7 @@ def main():
         plans = [plan for plan in plans if plan["decision"] != "SELL / AVOID"]
     futures = st.session_state["futures"]
     risk_profile = st.session_state["risk_profile"]
+    portfolio = st.session_state.get("portfolio", parse_portfolio(portfolio_text))
 
     avg_score = round(sum(plan["opportunity_score"] for plan in plans) / len(plans), 1) if plans else 0
 
@@ -1420,6 +1623,7 @@ def main():
 
     render_today_answer(regime, plans, risk_profile)
     render_opportunity_queue(plans)
+    render_signal_inbox(plans, portfolio)
 
     st.divider()
     opportunities_tab, workbench_tab, risk_tab, discover_tab, assistant_tab = st.tabs(
@@ -1446,6 +1650,8 @@ def main():
     with risk_tab:
         render_portfolio_guard(risk_profile, buy_plans)
         st.divider()
+        render_portfolio_context(portfolio, plans)
+        st.divider()
         render_smart_signals(plans)
 
     with discover_tab:
@@ -1455,17 +1661,20 @@ def main():
             render_future_card(item)
 
     with assistant_tab:
-        st.subheader("Ask QuanTrade")
+        st.subheader("Ask QuanTrade Intelligence")
         question = st.text_area(
             "Question",
-            placeholder="Ask if a ticker is buy, sell/avoid, or wait based on this scan...",
+            placeholder="Ask what changed, what matters in your portfolio, or compare stocks, ETFs, and crypto from this scan...",
             height=120,
         )
         if st.button("Ask AI Assistant", type="primary"):
+            signal_inbox = build_signal_inbox(plans, portfolio)
             context = {
                 "market_regime": regime["bias"],
                 "participation": regime["participation"],
                 "rule": regime["rule"],
+                "portfolio": portfolio,
+                "signal_inbox": signal_inbox,
                 "buy_setups": [
                     {
                         "symbol": p["symbol"],
