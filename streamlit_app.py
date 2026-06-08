@@ -345,6 +345,8 @@ def market_regime(use_live_data):
         bias = "neutral"
     return {
         "bias": bias,
+        "participation": "active" if bias == "bullish" else "selective" if bias == "neutral" else "defensive",
+        "rule": "Trade only A/B setups" if bias == "bullish" else "Reduce size and wait for confirmation" if bias == "neutral" else "Avoid weak setups and protect capital",
         "spy": spy,
         "qqq": qqq,
         "source": spy["source"],
@@ -378,6 +380,8 @@ def trade_grade(score):
 def trade_decision(score, quote):
     if quote["average_volume"] < 3_000_000:
         return "SELL / AVOID"
+    if quote["relative_volume"] < 0.85 and quote["price"] < quote["resistance"]:
+        return "HOLD / WATCH"
     if quote["price"] < quote["sma20"] and quote["sector_trend"] == "weak":
         return "SELL / AVOID"
     if score >= 80:
@@ -508,6 +512,7 @@ def build_trade_plan(quote, regime, risk_profile):
         "target1": target1,
         "target2": target2,
         "sizing": sizing,
+        "regime_rule": regime["rule"],
         "invalidation": f"Skip or exit if {quote['symbol']} loses VWAP near ${quote['vwap']} with heavy selling volume.",
     }
 
@@ -603,17 +608,17 @@ def render_header():
     with st.container(border=True):
         left, right = st.columns([0.72, 0.28], vertical_alignment="center")
         with left:
-            st.caption("Top-rated stock setup screener")
-            st.title("Let QuanTrade find the trade candidates.")
-            st.subheader("Automatic ranking for buy, wait, and sell/avoid decisions.")
+            st.caption("AI stock picker · smart signals · portfolio guard")
+            st.title("Discover trade candidates before you trade.")
+            st.subheader("QuanTrade scans, ranks, explains, and controls risk.")
             st.write(
-                "Choose a market universe, set your risk rules, and let the agent rank stocks by QuanScore, "
-                "factor grades, entry trigger, stop, target, and position size."
+                "Inspired by professional AI research tools, the agent starts with market discovery, then turns the best "
+                "setups into entry triggers, stop levels, targets, and position sizes."
             )
             st.caption("For informational purposes only. Not financial advice.")
         with right:
-            st.metric("Workflow", "Scan first")
-            st.metric("Output", "Ranked setups")
+            st.metric("Agent Mode", "Scan first")
+            st.metric("Risk Posture", "No overtrade")
 
 
 def render_screener_table(plans):
@@ -664,6 +669,123 @@ def passes_rating_filter(plan, rating_filter):
     if rating_filter == "Strong Buy only":
         return plan["rating"] == "Strong Buy"
     return True
+
+
+def plan_reasons(plan):
+    reasons = []
+    factors = plan["factor_grades"]
+    if factors["Momentum"] in ["A+", "A", "A-", "B+"]:
+        reasons.append("Momentum is expanding")
+    if factors["Technical"] in ["A+", "A", "A-", "B+"]:
+        reasons.append("Price structure is near a usable trigger")
+    if factors["Liquidity"] in ["A+", "A", "A-", "B+"]:
+        reasons.append("Liquidity supports execution")
+    if factors["Risk"] in ["A+", "A", "A-", "B+"]:
+        reasons.append("Volatility is acceptable for sizing")
+    if not reasons:
+        reasons.append("Signal needs cleaner confirmation")
+    return reasons[:3]
+
+
+def participation_label(plan):
+    if plan["decision"] == "BUY SETUP":
+        return "Ready only above trigger"
+    if plan["decision"] == "WAIT FOR TRIGGER":
+        return "Watch for confirmation"
+    if plan["decision"] == "HOLD / WATCH":
+        return "Do not force a trade"
+    return "Avoid or reduce exposure"
+
+
+def render_agent_console(regime, plans, risk_profile):
+    buy_count = sum(1 for plan in plans if plan["decision"] == "BUY SETUP")
+    wait_count = sum(1 for plan in plans if plan["decision"] in ["WAIT FOR TRIGGER", "HOLD / WATCH"])
+    sell_count = sum(1 for plan in plans if plan["decision"] == "SELL / AVOID")
+    risk_budget = money(risk_profile.account_size * risk_profile.risk_per_trade_percent / 100)
+    daily_stop = money(risk_profile.account_size * risk_profile.max_daily_loss_percent / 100)
+    max_new_trades = max(1, int(daily_stop // max(risk_budget, 1)))
+
+    st.markdown('<div class="qt-section-kicker">Agent Console</div>', unsafe_allow_html=True)
+    c1, c2, c3, c4 = st.columns(4)
+    c1.metric("Market Regime", regime["bias"].title())
+    c2.metric("Participation", regime["participation"].title())
+    c3.metric("Buy Setups", buy_count)
+    c4.metric("Max New Trades", max_new_trades)
+
+    if regime["participation"] == "defensive":
+        st.warning("Market is mixed/weak. The agent is in defensive mode: protect capital and ignore low-grade signals.")
+    elif wait_count > buy_count * 2 and buy_count <= 1:
+        st.info("Most names are not clean buy setups. Waiting is the recommended workflow until confirmation improves.")
+    else:
+        st.success("The scan found usable candidates. Trade only at the trigger and respect the stop.")
+
+    st.caption(
+        f"Rule: {regime['rule']} · Sell/Avoid names: {sell_count} · Risk per trade: about ${risk_budget} · "
+        "The agent is designed to reduce overtrading, not maximize clicks."
+    )
+
+
+def render_market_movers(plans):
+    rows = []
+    for plan in sorted(plans, key=lambda item: item["relative_volume"], reverse=True):
+        distance_from_sma20 = ((plan["price"] - plan["sma20"]) / max(plan["sma20"], 0.01)) * 100
+        rows.append(
+            {
+                "Ticker": plan["symbol"],
+                "Price": f"${plan['price']}",
+                "RVOL": plan["relative_volume"],
+                "Vs 20D": f"{round(distance_from_sma20, 1)}%",
+                "Momentum": plan["factor_grades"]["Momentum"],
+                "Rating": plan["rating"],
+                "Action": plan["decision"],
+            }
+        )
+    if pd is not None:
+        st.dataframe(pd.DataFrame(rows), use_container_width=True, hide_index=True)
+    else:
+        for row in rows:
+            st.write(row)
+
+
+def render_smart_signals(plans):
+    st.subheader("Smart Signals")
+    st.caption("This view turns the ranked list into a short execution checklist.")
+    for plan in plans[:6]:
+        with st.container(border=True):
+            left, right = st.columns([0.68, 0.32])
+            with left:
+                st.markdown(f"### {plan['symbol']} · {plan['rating']}")
+                st.write(participation_label(plan))
+                st.caption(" · ".join(plan_reasons(plan)))
+            with right:
+                st.metric("QuanScore", f"{plan['score']}/100")
+            c1, c2, c3 = st.columns(3)
+            c1.metric("Trigger", f"${plan['entry']}")
+            c2.metric("Stop", f"${plan['stop']}")
+            c3.metric("Target", f"${plan['target1']}")
+            st.caption(f"Invalidation: {plan['invalidation']}")
+
+
+def render_portfolio_guard(risk_profile, buy_plans):
+    risk_budget = money(risk_profile.account_size * risk_profile.risk_per_trade_percent / 100)
+    daily_stop = money(risk_profile.account_size * risk_profile.max_daily_loss_percent / 100)
+    planned_risk = money(sum(plan["sizing"]["max_loss"] for plan in buy_plans))
+    allowed = planned_risk <= daily_stop
+
+    st.subheader("Portfolio Guard")
+    c1, c2, c3 = st.columns(3)
+    c1.metric("Risk Per Trade", f"${risk_budget}")
+    c2.metric("Daily Stop", f"${daily_stop}")
+    c3.metric("Risk If All Buys Trigger", f"${planned_risk}")
+    if allowed:
+        st.success("Planned buy setups fit inside the daily risk limit.")
+    else:
+        st.error("Too much combined risk. Reduce size or choose fewer setups before trading.")
+    st.write("Execution rules:")
+    st.write("- Only trade names that trigger above the entry level.")
+    st.write("- Skip trades if the market regime turns defensive.")
+    st.write("- Stop after the daily loss limit is reached.")
+    st.write("- Exit logic matters more than entry logic: respect invalidation levels.")
 
 
 def render_plan(plan):
@@ -792,16 +914,8 @@ def main():
     futures = st.session_state["futures"]
     risk_profile = st.session_state["risk_profile"]
 
-    buy_count = sum(1 for plan in plans if plan["decision"] == "BUY SETUP")
-    wait_count = sum(1 for plan in plans if plan["decision"] in ["WAIT FOR TRIGGER", "HOLD / WATCH"])
-    sell_count = sum(1 for plan in plans if plan["decision"] == "SELL / AVOID")
     avg_score = round(sum(plan["score"] for plan in plans) / len(plans), 1) if plans else 0
 
-    c1, c2, c3, c4 = st.columns(4)
-    c1.metric("Market Regime", regime["bias"].title())
-    c2.metric("Buy Rated", buy_count)
-    c3.metric("Wait / Hold", wait_count)
-    c4.metric("Sell / Avoid", sell_count)
     st.caption(
         f"Scanned: {st.session_state.get('scan_universe', universe_name)} · "
         f"{st.session_state.get('scanned_count', len(raw_plans))} symbols · Average QuanScore: {avg_score}/100 · "
@@ -812,6 +926,7 @@ def main():
         st.warning("No names match the current rating filter. Change Minimum rating or show sell/avoid names.")
         return
 
+    render_agent_console(regime, plans, risk_profile)
     render_screener_table(plans)
 
     buy_plans = [plan for plan in plans if plan["decision"] == "BUY SETUP"]
@@ -841,16 +956,20 @@ def main():
             st.caption("No sell/avoid names in this scan.")
 
     st.divider()
-    risk_tab, future_tab, assistant_tab = st.tabs(["Risk Rules", "Future Watchlist", "Ask AI"])
+    movers_tab, signals_tab, guard_tab, future_tab, assistant_tab = st.tabs(
+        ["Market Movers", "Smart Signals", "Portfolio Guard", "Future Watchlist", "Ask AI"]
+    )
 
-    with risk_tab:
-        st.subheader("Risk Rules For This Scan")
-        max_daily_loss = money(risk_profile.account_size * risk_profile.max_daily_loss_percent / 100)
-        per_trade = money(risk_profile.account_size * risk_profile.risk_per_trade_percent / 100)
-        st.write(f"Risk per trade: about ${per_trade}")
-        st.write(f"Stop trading for the day near: ${max_daily_loss} loss")
-        st.write(f"Max position size: {risk_profile.max_position_percent}% of account")
-        st.write("Prefer no trade over a low-quality setup.")
+    with movers_tab:
+        st.subheader("Market Movers")
+        st.caption("High activity names from the current scan, ranked by relative volume.")
+        render_market_movers(plans)
+
+    with signals_tab:
+        render_smart_signals(plans)
+
+    with guard_tab:
+        render_portfolio_guard(risk_profile, buy_plans)
 
     with future_tab:
         st.subheader("Future Watchlist")
@@ -868,9 +987,38 @@ def main():
         if st.button("Ask AI Assistant", type="primary"):
             context = {
                 "market_regime": regime["bias"],
-                "buy_setups": [{"symbol": p["symbol"], "score": p["score"], "entry": p["entry"], "stop": p["stop"]} for p in buy_plans],
-                "wait": [{"symbol": p["symbol"], "decision": p["decision"], "score": p["score"]} for p in wait_plans[:5]],
-                "sell_avoid": [{"symbol": p["symbol"], "score": p["score"]} for p in sell_plans[:5]],
+                "participation": regime["participation"],
+                "rule": regime["rule"],
+                "buy_setups": [
+                    {
+                        "symbol": p["symbol"],
+                        "rating": p["rating"],
+                        "score": p["score"],
+                        "factor_grades": p["factor_grades"],
+                        "entry": p["entry"],
+                        "stop": p["stop"],
+                    }
+                    for p in buy_plans
+                ],
+                "wait": [
+                    {
+                        "symbol": p["symbol"],
+                        "rating": p["rating"],
+                        "decision": p["decision"],
+                        "score": p["score"],
+                        "factor_grades": p["factor_grades"],
+                    }
+                    for p in wait_plans[:5]
+                ],
+                "sell_avoid": [
+                    {
+                        "symbol": p["symbol"],
+                        "rating": p["rating"],
+                        "score": p["score"],
+                        "factor_grades": p["factor_grades"],
+                    }
+                    for p in sell_plans[:5]
+                ],
             }
             prompt = f"User question: {question}\n\nCurrent QuanTrade buy/sell scan:\n{json.dumps(context, indent=2)}"
             st.write(openai_brief(prompt))
