@@ -1,67 +1,54 @@
 # QuanTrade AI Agent
 
-Smarter signals. Calmer trading.
+QuanTrade is a modular AI stock-scanning and signal agent. It is rebuilt as a research-grade, paper-first system with clear separation between data, features, ranking, signals, risk, execution, and reporting.
 
-QuanTrade AI Agent is an AI-powered market analysis assistant for stocks, crypto, market signals, risk, and portfolio opportunities. It is designed to support better decision-making with risk-aware trading support, not to promise outcomes.
+It does **not** promise profit. Signals are informational research outputs and require independent review.
 
-The first version focuses on disciplined market analysis:
-
-- Automatically scans a market universe.
-- Filters for liquid short-term setups.
-- Scores trade quality.
-- Suggests when to buy, when to sell, and how much to buy.
-- Calculates max loss from account risk settings.
-- Uses OpenAI to explain trade plans when enabled.
-
-Signals are informational only and are not financial advice. Start with paper trading before using any live broker connection.
-
-## Run
-
-### Streamlit app
+## Quick Start
 
 ```bash
+python -m pip install -e ".[dev]"
+quantrade health-check
+quantrade generate-signals --mode eod --horizon swing
 streamlit run streamlit_app.py
 ```
 
-### Node prototype
+## Default Scope
 
-```bash
-npm run scan
-npm start
+- U.S. equities and ETFs first
+- EOD mode required
+- Intraday mode scaffolded
+- Long-only buy candidates plus sell/avoid signals
+- Paper broker by default
+- Live trading blocked unless explicitly enabled
+
+## Architecture
+
+See [docs/architecture.md](docs/architecture.md).
+
+## Sample Output
+
+```json
+{
+  "top_ideas": [
+    {
+      "symbol": "NVDA",
+      "long_score": 88.1,
+      "signal": "BUY_CANDIDATE",
+      "rationale": "positive momentum, strong quality"
+    }
+  ],
+  "approved_orders": 2,
+  "disclosure": "Signals are informational research outputs, not financial advice..."
+}
 ```
 
-Then open:
+## Safety
 
-```text
-http://localhost:4321
-```
+- Paper trading is the default.
+- Risk engine runs before every order.
+- Stale data blocks orders.
+- Order IDs are idempotent.
+- Secrets must be environment variables.
+- `.env` and `.env.local` must never be committed.
 
-## Current Mode
-
-The app starts with mock market data so the scanner, scoring, and trade-plan flow can be tested immediately.
-
-Next live integrations to add:
-
-- Alpaca market data and paper trading.
-- Polygon stock snapshots/news.
-- Broker order preview and human approval.
-
-## Deploy To Streamlit Cloud
-
-1. Push this project to a GitHub repository.
-2. Go to `https://share.streamlit.io`.
-3. Choose the repository and branch.
-4. Set the main file path to:
-
-```text
-streamlit_app.py
-```
-
-5. Add app secrets in Streamlit Cloud:
-
-```toml
-OPENAI_API_KEY = "your_openai_platform_key"
-OPENAI_MODEL = "gpt-4.1-mini"
-```
-
-Do not upload `.env.local` to GitHub.

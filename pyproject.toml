@@ -1,0 +1,43 @@
+[build-system]
+requires = ["setuptools>=69", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "quantrade-ai-agent"
+version = "0.2.0"
+description = "Modular AI stock-scanning and paper-trading signal agent."
+requires-python = ">=3.12"
+dependencies = [
+  "duckdb>=1.0",
+  "httpx>=0.27",
+  "numpy>=1.26",
+  "pandas>=2.2",
+  "pydantic>=2.7",
+  "pyarrow>=16.0",
+  "scikit-learn>=1.5",
+  "scipy>=1.13",
+  "sqlalchemy>=2.0",
+  "streamlit>=1.36",
+  "tenacity>=8.3",
+  "websockets>=12.0",
+]
+
+[project.optional-dependencies]
+brokers = ["alpaca-py>=0.28", "ib-insync>=0.9"]
+dev = ["pytest>=8.2", "pytest-asyncio>=0.23", "ruff>=0.5", "mypy>=1.10", "pre-commit>=3.7"]
+
+[project.scripts]
+quantrade = "stock_agent.cli:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.ruff]
+line-length = 110
+target-version = "py312"
+
+[tool.mypy]
+python_version = "3.12"
+strict = true
+ignore_missing_imports = true
+
